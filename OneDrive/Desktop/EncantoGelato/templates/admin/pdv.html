@@ -1,0 +1,64 @@
+{% extends "admin/base.html" %}
+{% block title %}PDV{% endblock %}
+{% block content %}
+<h1 class="display" style="margin-top:0">PDV — Caixa</h1>
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:18px">
+  <div>
+    {% for slug, label in CATEGORIES %}
+      {% if grouped.get(slug) %}
+      <h3>{{ label }}</h3>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        {% for p in grouped[slug] %}
+        <button class="add-btn" type="button" onclick='addItem({{ p.to_dict() | tojson }})' {% if p.stock <= 0 %}disabled{% endif %}>
+          <strong>{{ p.name }}</strong>
+          <div style="font-size:.8rem;opacity:.65">{{ p.price | brl }} · est. {{ p.stock }}</div>
+        </button>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <aside class="panel">
+    <h2 style="margin-top:0">Comanda</h2>
+    <div id="cart-list"></div>
+    <p style="display:flex;justify-content:space-between"><span>Total</span><b id="cart-total">R$ 0,00</b></p>
+    <form id="checkout">
+      <input class="field" name="customer_name" value="Cliente balcão" />
+      <input class="field" name="phone" placeholder="Telefone" />
+      <input type="hidden" name="order_type" value="balcao" />
+      <input type="hidden" name="payment" value="pix" />
+      <p class="field" style="margin:8px 0 0;background:#f6efe4">Pagamento: PIX</p>
+      <button class="btn btn-berry" style="width:100%;margin-top:10px">Registrar venda</button>
+      <p id="form-msg" style="color:#9e2a3b"></p>
+    </form>
+  </aside>
+</div>
+<script>
+const CSRF = {{ csrf_token | tojson }};
+const cart = {};
+const fmt = v => v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+function addItem(p){ if(!cart[p.id]) cart[p.id]={...p,qty:0}; cart[p.id].qty++; render(); }
+function changeQty(id,d){ if(!cart[id]) return; cart[id].qty+=d; if(cart[id].qty<=0) delete cart[id]; render(); }
+function render(){
+  const items=Object.values(cart);
+  document.getElementById("cart-list").innerHTML=items.map(i=>`
+    <div style="display:flex;justify-content:space-between;margin:6px 0">
+      <span>${i.name}</span>
+      <span><button type="button" onclick="changeQty(${i.id},-1)">−</button> ${i.qty}
+      <button type="button" onclick="changeQty(${i.id},1)">+</button> ${fmt(i.qty*i.price)}</span>
+    </div>`).join("");
+  document.getElementById("cart-total").textContent=fmt(items.reduce((s,i)=>s+i.qty*i.price,0));
+}
+document.getElementById("checkout").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const items=Object.values(cart).map(i=>({id:i.id,qty:i.qty}));
+  if(!items.length){ document.getElementById("form-msg").textContent="Comanda vazia."; return; }
+  const payload=Object.fromEntries(new FormData(e.target).entries());
+  payload.items=items; payload._csrf=CSRF;
+  const res=await fetch("{{ url_for('pedido_criar') }}",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":CSRF},body:JSON.stringify(payload)});
+  const data=await res.json();
+  if(data.ok){ alert("Venda #"+data.order_id+" registrada"); location.reload(); }
+  else document.getElementById("form-msg").textContent=data.msg||"Erro";
+});
+</script>
+{% endblock %}

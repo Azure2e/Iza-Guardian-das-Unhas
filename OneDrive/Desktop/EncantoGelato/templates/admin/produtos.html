@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}
+{% block title %}Produtos{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center">
+  <h1 class="display" style="margin:0">Produtos</h1>
+  <a class="btn btn-berry" href="{{ url_for('admin_produto_novo') }}">Novo produto</a>
+</div>
+<div class="panel" style="margin-top:16px;overflow:auto">
+  <table class="table">
+    <thead><tr><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for p in products %}
+    <tr>
+      <td><b>{{ p.name }}</b><div style="opacity:.5;font-size:.8rem">{{ p.unit }}</div></td>
+      <td>{{ p.category }}</td>
+      <td>{{ p.price | brl }}</td>
+      <td style="{{ 'color:#9e2a3b;font-weight:700' if p.stock<=10 }}">{{ p.stock }}</td>
+      <td>{{ "Ativo" if p.active else "Inativo" }}</td>
+      <td>
+        <a href="{{ url_for('admin_produto_editar', pid=p.id) }}">Editar</a>
+        <form method="post" action="{{ url_for('admin_produto_toggle', pid=p.id) }}" style="display:inline">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+          <button class="pill">{{ "Desativar" if p.active else "Ativar" }}</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

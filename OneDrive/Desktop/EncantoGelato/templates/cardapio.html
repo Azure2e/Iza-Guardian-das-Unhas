@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Carta — Encanto Gelato{% endblock %}
+{% block content %}
+<section class="wrap" style="padding:56px 0 20px">
+  <p class="kicker">degustação</p>
+  <h1 class="display" style="font-size:clamp(2.6rem,6vw,4.4rem);margin:8px 0">A carta</h1>
+  <p class="lede">Uma seleção curta. Cada sabor tem um motivo para estar aqui.</p>
+  <div class="pill-row">
+    <a class="pill {{ 'active' if not cat }}" href="{{ url_for('cardapio') }}">Tudo</a>
+    {% for slug, label in CATEGORIES %}
+    <a class="pill {{ 'active' if cat==slug }}" href="{{ url_for('cardapio', cat=slug) }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+</section>
+<section class="wrap" style="padding-bottom:72px">
+  {% for slug, label in CATEGORIES %}
+    {% if grouped.get(slug) %}
+    <h2 class="display" style="font-size:2rem;margin:36px 0 16px">{{ label }}</h2>
+    <div class="grid-3">
+      {% for p in grouped[slug] %}
+      <article class="menu-item">
+        {% if p.image %}<img src="{{ p.image }}" alt="{{ p.name }}" />{% else %}<div class="ph">✦</div>{% endif %}
+        <div>
+          <h3 style="margin:0">{{ p.name }}</h3>
+          <p style="margin:6px 0;color:rgba(28,18,12,.6);font-size:.9rem">{{ p.description }}</p>
+          <strong class="price">{{ p.price | brl }}</strong>
+          <span style="font-size:.8rem;opacity:.5"> · {{ p.unit }}</span>
+          <div style="font-size:.75rem;margin-top:6px;color:var(--pistachio);font-weight:600">✅ Garantia de 60 dias</div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endfor %}
+  <p style="text-align:center;margin-top:40px">
+    <a class="btn btn-berry" href="{{ url_for('pedido') }}">Montar meu pedido</a>
+  </p>
+</section>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1 class="display" style="margin-top:0">Dashboard</h1>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+  <div class="stat"><small>Vendas hoje</small><b>{{ today_sales | brl }}</b></div>
+  <div class="stat"><small>Pedidos hoje</small><b>{{ today_count }}</b></div>
+  <div class="stat"><small>Em andamento</small><b>{{ pending }}</b></div>
+  <div class="stat"><small>Produtos ativos</small><b>{{ products_count }}</b></div>
+</div>
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:18px">
+  <div class="panel">
+    <h2 style="margin-top:0">Últimos 7 dias</h2>
+    <div style="display:flex;align-items:end;gap:8px;height:150px">
+      {% set maxv = days | map(attribute='total') | max %}
+      {% for d in days %}
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:end;height:100%">
+        <div style="width:100%;background:linear-gradient(#d65a6c,#9e2a3b);border-radius:8px 8px 0 0;height:{{ 8 if maxv==0 else (d.total / maxv * 100) }}%"></div>
+        <span style="font-size:10px;margin-top:4px">{{ d.label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">Mais vendidos</h2>
+    {% for name, qtd in top %}
+    <p style="display:flex;justify-content:space-between"><span>{{ name }}</span><b>{{ qtd }}</b></p>
+    {% else %}<p style="opacity:.5">Ainda sem vendas.</p>{% endfor %}
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+  <div class="panel">
+    <h2 style="margin-top:0">Pedidos recentes</h2>
+    <table class="table">
+      {% for o in recent %}
+      <tr><td>#{{ o.id }} {{ o.customer_name }}</td><td>{{ o.total | brl }}</td><td>{{ STATUS_LABEL.get(o.status) }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">Estoque baixo</h2>
+    {% for p in low_stock %}
+    <p style="display:flex;justify-content:space-between"><span>{{ p.name }}</span><b style="color:#9e2a3b">{{ p.stock }}</b></p>
+    {% else %}<p style="opacity:.5">Tudo em ordem.</p>{% endfor %}
+  </div>
+</div>
+{% endblock %}

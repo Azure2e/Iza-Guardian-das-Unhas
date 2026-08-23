@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Encanto Gelato{% endblock %}</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("encanto-theme");
+        if (t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches))
+          document.documentElement.classList.add("dark");
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}" />
+</head>
+<body class="storefront">
+  <div class="orbs" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="grain"></div>
+  <header class="nav">
+    <a class="brand" href="{{ url_for('index') }}">
+      <span class="brand-mark">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 3c3.2 0 6 2.4 6 5.8 0 4.6-6 11.2-6 11.2S6 13.4 6 8.8C6 5.4 8.8 3 12 3Z" fill="#fff"/>
+          <circle cx="12" cy="9" r="2.2" fill="#a12d3d"/>
+        </svg>
+      </span>
+      <span>
+        <span class="brand-name">Encanto Gelato</span><br />
+        <span class="brand-sub">atelier de gelato</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="{{ url_for('index') }}">Casa</a>
+      <a href="{{ url_for('cardapio') }}">Carta</a>
+      <a href="{{ url_for('pedido') }}">Pedir</a>
+      <a href="{{ url_for('garantia') }}">Garantia</a>
+      <a href="{{ url_for('contato') }}">Visite</a>
+    </nav>
+    <div class="nav-actions">
+      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Alternar tema">🌙</button>
+      <a class="btn btn-berry" href="{{ url_for('pedido') }}">Fazer pedido</a>
+    </div>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer class="site-footer">
+    <div class="wrap foot-grid">
+      <div>
+        <p class="display" style="font-size:2rem;margin:0;color:#fff">Encanto Gelato</p>
+        <p style="opacity:.7;max-width:340px;line-height:1.55;margin-top:12px">
+          Massas lentas, frutas da estação e a ritualidade de um gelato feito na hora.
+          O encanto mora no frio.
+        </p>
+      </div>
+      <div>
+        <p style="color:#c9a66b;letter-spacing:.12em;text-transform:uppercase;font-size:.75rem;font-weight:600">Horário</p>
+        <p style="margin:8px 0 0">Terça a domingo · 12h–22h</p>
+        <p style="opacity:.75">Rua das Cerejeiras, 120 — Centro</p>
+      </div>
+      <div>
+        <p style="color:#c9a66b;letter-spacing:.12em;text-transform:uppercase;font-size:.75rem;font-weight:600">Contato</p>
+        <p style="margin:8px 0 0">(11) 99999-0000</p>
+        <p style="opacity:.75">@encantogelato</p>
+        <p style="margin-top:8px">💠 Só PIX</p>
+        <p style="margin-top:8px"><a href="{{ url_for('garantia') }}">🛡️ Garantia 60 dias</a></p>
+        <p style="margin-top:16px"><a href="{{ url_for('admin_login') }}">Área da loja</a></p>
+      </div>
+    </div>
+    <p class="foot-copy wrap">© Encanto Gelato · atelier artesanal</p>
+  </footer>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

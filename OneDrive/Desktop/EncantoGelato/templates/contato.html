@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Visite — Encanto Gelato{% endblock %}
+{% block content %}
+<section class="wrap" style="padding:64px 0;display:grid;grid-template-columns:1fr 1fr;gap:40px">
+  <div>
+    <p class="kicker">a loja</p>
+    <h1 class="display" style="font-size:clamp(2.6rem,6vw,4.2rem);margin:8px 0">Vem tomar um gelato</h1>
+    <p class="lede">Mesas na calçada, ar-condicionado e o cheiro de casquinha saindo do forno.</p>
+    <p>📍 Rua das Cerejeiras, 120 — Centro<br>📞 (11) 99999-0000<br>📷 @encantogelato<br>🕑 Terça a domingo, 12h–22h<br>💠 Pagamento somente no PIX</p>
+  </div>
+  <div class="card"><div class="card-body">
+    <h2 class="display">Escreva para a casa</h2>
+    <form onsubmit="event.preventDefault(); this.reset(); alert('Recebemos. Respondemos no WhatsApp.');">
+      <input class="field" required placeholder="Nome" />
+      <input class="field" required placeholder="WhatsApp" />
+      <textarea class="field" required rows="4" placeholder="Mensagem"></textarea>
+      <button class="btn btn-berry" style="margin-top:12px">Enviar</button>
+    </form>
+  </div></div>
+</section>
+<style>@media(max-width:800px){ .wrap[style*="grid-template-columns"]{grid-template-columns:1fr !important} }</style>
+{% endblock %}

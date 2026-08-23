@@ -1,0 +1,81 @@
+{% extends "admin/base.html" %}
+{% block title %}Segurança{% endblock %}
+{% block content %}
+<h1 class="display" style="margin-top:0">Módulo de segurança</h1>
+<p style="max-width:640px;opacity:.75">
+  Usuários com senha criptografada, papéis, bloqueio após 5 tentativas, CSRF, sessão com timeout
+  e auditoria de ações sensíveis.
+</p>
+
+<div class="panel" style="margin-top:18px">
+  <h2 style="margin-top:0">Novo usuário</h2>
+  <form method="post" action="{{ url_for('admin_usuario_criar') }}" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+    <input class="field" name="name" required placeholder="Nome completo" />
+    <input class="field" name="username" required placeholder="Usuário" />
+    <input class="field" name="password" type="password" required placeholder="Senha (8+ com letra e número)" />
+    <select class="field" name="role">
+      {% for key, meta in ROLES.items() %}
+      <option value="{{ key }}">{{ meta.label }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-berry">Criar usuário</button>
+  </form>
+  <p style="font-size:.82rem;opacity:.6">
+    Admin: tudo. Gerente: operação e relatórios. Caixa: PDV e pedidos.
+  </p>
+</div>
+
+<div class="panel" style="margin-top:16px;overflow:auto">
+  <h2 style="margin-top:0">Usuários</h2>
+  <table class="table">
+    <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Status</th><th>Último acesso</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.name }}</td>
+      <td>{{ u.username }}</td>
+      <td>{{ ROLES[u.role].label }}</td>
+      <td>
+        {% if u.is_locked() %}Bloqueado
+        {% elif u.active %}Ativo
+        {% else %}Inativo{% endif %}
+      </td>
+      <td>{{ u.last_login_at.strftime('%d/%m %H:%M') if u.last_login_at else "—" }}</td>
+      <td>
+        <form method="post" action="{{ url_for('admin_usuario_toggle', uid=u.id) }}" style="display:inline">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+          <button class="pill">{{ "Desativar" if u.active else "Ativar" }}</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_usuario_reset', uid=u.id) }}" style="display:inline">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+          <input class="field" style="width:140px;margin:0;display:inline-block" name="password" placeholder="Nova senha" />
+          <button class="pill">Resetar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel" style="margin-top:16px">
+  <h2 style="margin-top:0">Auditoria recente</h2>
+  <table class="table">
+    <thead><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Detalhe</th><th>IP</th></tr></thead>
+    <tbody>
+    {% for l in logs %}
+    <tr>
+      <td>{{ l.created_at.strftime('%d/%m %H:%M') }}</td>
+      <td>{{ l.username or "—" }}</td>
+      <td>{{ l.action }}</td>
+      <td>{{ l.detail }}</td>
+      <td>{{ l.ip }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">Nenhum evento ainda.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block title %}Pedidos{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <h1 class="display" style="margin:0">Pedidos</h1>
+  <div>
+    <a class="pill {{ 'active' if not status }}" href="{{ url_for('admin_pedidos') }}">Todos</a>
+    {% for s, lab in STATUS_LABEL.items() %}
+    <a class="pill {{ 'active' if status==s }}" href="{{ url_for('admin_pedidos', status=s) }}">{{ lab }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% for o in orders %}
+<article class="panel" style="margin-top:12px">
+  <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <div>
+      <b>#{{ o.id }} — {{ o.customer_name }}</b>
+      <div style="font-size:.82rem;opacity:.6">
+        {{ o.created_at.strftime('%d/%m/%Y %H:%M') }} · {{ TYPE_LABEL.get(o.order_type) }} · PIX
+        {% if o.pix_txid %} · txid {{ o.pix_txid }}{% endif %}
+      </div>
+      {% if o.status == 'aguardando_pix' %}
+      <div style="font-size:.85rem;color:#c4495a;margin-top:4px">Aguardando confirmação do PIX</div>
+      {% elif o.pix_paid_at %}
+      <div style="font-size:.85rem;opacity:.65">Pago em {{ o.pix_paid_at.strftime('%d/%m %H:%M') }}</div>
+      {% endif %}
+    </div>
+    <b>{{ o.total | brl }}</b>
+  </div>
+  <ul>{% for it in o.items %}<li>{{ it.quantity }}× {{ it.product_name }}</li>{% endfor %}</ul>
+  {% if o.status == 'aguardando_pix' %}
+  <form method="post" action="{{ url_for('admin_confirmar_pix', oid=o.id) }}" style="margin-bottom:10px">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+    <button class="btn btn-berry" style="padding:10px 18px">✓ Confirmar PIX recebido</button>
+  </form>
+  {% endif %}
+  <form method="post" action="{{ url_for('admin_pedido_status', oid=o.id) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+    {% for s, lab in STATUS_LABEL.items() %}
+    <button name="status" value="{{ s }}" class="pill {{ 'active' if o.status==s }}">{{ lab }}</button>
+    {% endfor %}
+  </form>
+</article>
+{% else %}
+<p>Nenhum pedido.</p>
+{% endfor %}
+{% endblock %}

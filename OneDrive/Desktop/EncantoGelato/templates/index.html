@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Encanto Gelato — Atelier de gelato{% endblock %}
+{% block content %}
+<section class="wrap hero">
+  <div>
+    <p class="kicker">feito ao dia · sem pressa</p>
+    <h1>O encanto<br>mora no<br>frio.</h1>
+    <p class="lede">Gelato artesanal, açaí batido e milkshakes com calda quente. Uma carta curta, escolhida, irresistível.</p>
+    <div class="hero-actions">
+      <a class="btn btn-berry" href="{{ url_for('pedido') }}">Quero pedir agora</a>
+      <a class="btn btn-ghost" href="{{ url_for('cardapio') }}">Ver a carta</a>
+    </div>
+    <div class="hero-badges">
+      <span>✦ Artesanal</span>
+      <span>💠 Só PIX</span>
+      <span>🌿 Produção diária</span>
+    </div>
+  </div>
+  <div class="hero-art">
+    <div class="hero-glow"></div>
+    <img src="https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?w=1400&q=80" alt="Gelato Encanto" />
+    <div class="float-card">
+      <small>assinatura da casa</small>
+      <div class="display" style="font-size:1.4rem;margin-top:4px">Ninho com Nutella</div>
+      <div class="stars">★★★★★ · o mais pedido</div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap section">
+  <div class="section-head">
+    <div>
+      <p class="kicker">a carta</p>
+      <h2>Sabores que ficam</h2>
+    </div>
+    <a href="{{ url_for('cardapio') }}">Ver tudo →</a>
+  </div>
+  <div class="grid-4">
+    {% for p in destaques %}
+    <article class="card">
+      {% if p.image %}<img src="{{ p.image }}" alt="{{ p.name }}" loading="lazy" />{% endif %}
+      <div class="card-body">
+        <h3>{{ p.name }}</h3>
+        <p style="margin:0;color:rgba(26,16,12,.58);font-size:.9rem;line-height:1.4">{{ p.description }}</p>
+        <p class="price">{{ p.price | brl }}</p>
+        <p style="font-size:.72rem;margin:6px 0 0;color:var(--pistachio);font-weight:600">✅ Garantia de 60 dias</p>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="wrap section" style="padding-top:8px">
+  <div class="banner-strip">
+    <div>
+      <h2 class="display">Peça agora. Pague no PIX.</h2>
+      <p>Monte sua comanda, escolha retirada ou delivery e deixe o resto com a casa.</p>
+    </div>
+    <a class="btn btn-ghost" href="{{ url_for('pedido') }}" style="background:#fff;color:#1a100c">Montar pedido</a>
+  </div>
+</section>
+
+<section class="wrap section">
+  <div class="trio">
+    <article>
+      <div class="ico">🥛</div>
+      <h3 class="display" style="margin:0 0 8px">Massa lenta</h3>
+      <p style="margin:0;opacity:.7;line-height:1.5">Leite selecionado e produção diária. Sem pressa, sem conservante.</p>
+    </article>
+    <article>
+      <div class="ico">✦</div>
+      <h3 class="display" style="margin:0 0 8px">Pedido elegante</h3>
+      <p style="margin:0;opacity:.7;line-height:1.5">Monte no site, pague no PIX e retire — ou receba em casa.</p>
+    </article>
+    <article>
+      <div class="ico">🌿</div>
+      <h3 class="display" style="margin:0 0 8px">Estação</h3>
+      <p style="margin:0;opacity:.7;line-height:1.5">Frutas da semana e criações da casa. A carta muda com o clima.</p>
+    </article>
+  </div>
+</section>
+{% endblock %}

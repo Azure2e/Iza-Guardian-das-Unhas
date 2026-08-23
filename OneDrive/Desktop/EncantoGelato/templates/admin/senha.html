@@ -1,0 +1,13 @@
+{% extends "admin/base.html" %}
+{% block title %}Minha senha{% endblock %}
+{% block content %}
+<h1 class="display" style="margin-top:0">Trocar minha senha</h1>
+<form method="post" class="panel" style="max-width:420px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+  <label>Senha atual<input class="field" type="password" name="current" required /></label>
+  <label>Nova senha<input class="field" type="password" name="new" required /></label>
+  <label>Confirmar<input class="field" type="password" name="confirm" required /></label>
+  <p style="font-size:.85rem;opacity:.65">Mínimo 8 caracteres, com letras e números.</p>
+  <button class="btn btn-berry">Salvar senha</button>
+</form>
+{% endblock %}

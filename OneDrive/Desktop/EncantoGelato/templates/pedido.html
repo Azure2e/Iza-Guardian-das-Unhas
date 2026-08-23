@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Pedido — Encanto Gelato{% endblock %}
+{% block content %}
+<section class="wrap order-layout">
+  <div>
+    <p class="kicker">comanda</p>
+    <h1 class="display" style="font-size:3rem;margin:8px 0 6px">Monte o seu</h1>
+    <p class="lede">Toque nos itens. O carrinho cuida do resto.</p>
+    {% for slug, label in CATEGORIES %}
+      {% if grouped.get(slug) %}
+      <h2 class="display" style="margin:28px 0 10px">{{ label }}</h2>
+      <div class="grid-2">
+        {% for p in grouped[slug] %}
+        <button class="add-btn" type="button" onclick='addItem({{ p.to_dict() | tojson }})' {% if p.stock <= 0 %}disabled{% endif %}>
+          <strong>{{ p.name }}</strong>
+          <div style="font-size:.85rem;opacity:.65">{{ p.price | brl }} · {{ p.unit }}</div>
+        </button>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+  <aside class="cart">
+    <h2 class="display" style="margin-top:0">Sua comanda</h2>
+    <div id="cart-list"></div>
+    <p id="cart-empty" style="opacity:.5">Nenhum item ainda.</p>
+    <p style="display:flex;justify-content:space-between;font-size:1.2rem">
+      <span>Total</span><strong id="cart-total">R$ 0,00</strong>
+    </p>
+    <form id="checkout">
+      <input class="field" name="customer_name" required placeholder="Seu nome" />
+      <input class="field" name="phone" placeholder="WhatsApp" />
+      <select class="field" name="order_type" id="order_type">
+        <option value="retirada">Retirada na loja</option>
+        <option value="delivery">Delivery</option>
+        <option value="balcao">Vou pedir no balcão</option>
+      </select>
+      <input class="field" name="address" id="address" placeholder="Endereço para delivery" style="display:none" />
+      <input type="hidden" name="payment" value="pix" />
+      <p class="field" style="margin:8px 0 0;background:#f6efe4">Pagamento apenas via PIX</p>
+      <textarea class="field" name="notes" rows="2" placeholder="Observações"></textarea>
+      <button class="btn btn-berry" style="width:100%;margin-top:12px">Confirmar pedido</button>
+      <p id="form-msg" style="color:var(--raspberry)"></p>
+    </form>
+  </aside>
+</section>
+<script>
+const CSRF = {{ csrf_token | tojson }};
+const cart = {};
+const fmt = v => v.toLocaleString("pt-BR", {style:"currency", currency:"BRL"});
+function addItem(p){ if(!cart[p.id]) cart[p.id]={...p,qty:0}; cart[p.id].qty++; render(); }
+function changeQty(id,d){ if(!cart[id]) return; cart[id].qty+=d; if(cart[id].qty<=0) delete cart[id]; render(); }
+function render(){
+  const items=Object.values(cart);
+  document.getElementById("cart-list").innerHTML=items.map(i=>`
+    <div style="display:flex;justify-content:space-between;gap:8px;margin:8px 0;font-size:.92rem">
+      <span>${i.name}</span>
+      <span>
+        <button type="button" onclick="changeQty(${i.id},-1)">−</button>
+        ${i.qty}
+        <button type="button" onclick="changeQty(${i.id},1)">+</button>
+        ${fmt(i.qty*i.price)}
+      </span>
+    </div>`).join("");
+  document.getElementById("cart-empty").style.display=items.length?"none":"block";
+  document.getElementById("cart-total").textContent=fmt(items.reduce((s,i)=>s+i.qty*i.price,0));
+}
+document.getElementById("order_type").addEventListener("change", e=>{
+  document.getElementById("address").style.display = e.target.value==="delivery" ? "block" : "none";
+});
+document.getElementById("checkout").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const items=Object.values(cart).map(i=>({id:i.id,qty:i.qty}));
+  if(!items.length){ document.getElementById("form-msg").textContent="Adicione um item."; return; }
+  const payload=Object.fromEntries(new FormData(e.target).entries());
+  payload.items=items; payload._csrf=CSRF;
+  const res=await fetch("{{ url_for('pedido_criar') }}",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","X-CSRF-Token":CSRF},
+    body:JSON.stringify(payload)
+  });
+  const data=await res.json();
+  if(data.ok) window.location="/confirmacao/"+data.order_id;
+  else document.getElementById("form-msg").textContent=data.msg||"Erro ao enviar.";
+});
+</script>
+{% endblock %}

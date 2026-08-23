@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% block title %}Estoque{% endblock %}
+{% block content %}
+<h1 class="display" style="margin-top:0">Estoque</h1>
+<p style="opacity:.65">Valores positivos entram. Negativos dão baixa.</p>
+<div class="panel">
+  <table class="table">
+    <thead><tr><th>Produto</th><th>Atual</th><th>Movimentar</th></tr></thead>
+    <tbody>
+    {% for p in products %}
+    <tr>
+      <td>{{ p.name }}<div style="opacity:.45;font-size:.8rem">{{ p.category }}</div></td>
+      <td style="{{ 'color:#9e2a3b;font-weight:700' if p.stock<=10 }}">{{ p.stock }}</td>
+      <td>
+        <form method="post" style="display:flex;gap:8px">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+          <input type="hidden" name="product_id" value="{{ p.id }}" />
+          <input class="field" style="width:90px;margin:0" name="qty" type="number" value="10" />
+          <button class="pill active">Aplicar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

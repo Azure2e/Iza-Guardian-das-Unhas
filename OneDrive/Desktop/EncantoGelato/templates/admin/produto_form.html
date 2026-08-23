@@ -1,0 +1,23 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ "Editar" if product else "Novo" }} produto{% endblock %}
+{% block content %}
+<h1 class="display" style="margin-top:0">{{ "Editar" if product else "Novo" }} produto</h1>
+<form method="post" class="panel" style="max-width:560px">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+  <label>Nome<input class="field" name="name" required value="{{ product.name if product else '' }}" /></label>
+  <label>Descrição<textarea class="field" name="description" rows="2">{{ product.description if product else '' }}</textarea></label>
+  <label>Categoria
+    <select class="field" name="category">
+      {% for slug, label in CATEGORIES %}
+      <option value="{{ slug }}" {% if product and product.category==slug %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Unidade<input class="field" name="unit" value="{{ product.unit if product else 'bola' }}" /></label>
+  <label>Preço<input class="field" name="price" type="number" step="0.01" required value="{{ product.price if product else '' }}" /></label>
+  <label>Estoque<input class="field" name="stock" type="number" value="{{ product.stock if product else 0 }}" /></label>
+  <label>URL da imagem<input class="field" name="image" value="{{ product.image if product else '' }}" /></label>
+  <label><input type="checkbox" name="active" {% if not product or product.active %}checked{% endif %} /> Produto ativo</label>
+  <p><button class="btn btn-berry">Salvar</button> <a href="{{ url_for('admin_produtos') }}">Cancelar</a></p>
+</form>
+{% endblock %}

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Painel{% endblock %} · Encanto</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("encanto-theme");
+        if (t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches))
+          document.documentElement.classList.add("dark");
+      } catch (e) {}
+    })();
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}" />
+</head>
+<body class="backoffice">
+  <aside class="sidebar">
+    <div class="side-brand">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div>
+          <strong>Encanto</strong>
+          <div style="opacity:.55;font-size:.8rem">gestão da casa</div>
+        </div>
+        <button type="button" class="theme-toggle" data-theme-toggle aria-label="Alternar tema" style="width:36px;height:36px;font-size:.95rem">🌙</button>
+      </div>
+      {% if current_user %}
+      <div style="margin-top:12px;font-size:.82rem">
+        {{ current_user.name }}
+        <span class="badge-role">{{ ROLES[current_user.role].label }}</span>
+      </div>
+      {% endif %}
+    </div>
+    <nav style="flex:1">
+      {% if current_user and current_user.has_perm('dashboard') %}
+      <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+      {% endif %}
+      {% if current_user and current_user.has_perm('pdv') %}
+      <a href="{{ url_for('admin_pdv') }}">PDV / Caixa</a>
+      {% endif %}
+      {% if current_user and current_user.has_perm('pedidos') %}
+      <a href="{{ url_for('admin_pedidos') }}">Pedidos</a>
+      {% endif %}
+      {% if current_user and current_user.has_perm('produtos') %}
+      <a href="{{ url_for('admin_produtos') }}">Produtos</a>
+      {% endif %}
+      {% if current_user and current_user.has_perm('estoque') %}
+      <a href="{{ url_for('admin_estoque') }}">Estoque</a>
+      {% endif %}
+      {% if current_user and current_user.has_perm('relatorios') %}
+      <a href="{{ url_for('admin_relatorios') }}">Relatórios</a>
+      {% endif %}
+      {% if current_user and current_user.has_perm('seguranca') %}
+      <a href="{{ url_for('admin_seguranca') }}">Segurança</a>
+      {% endif %}
+      <a href="{{ url_for('admin_minha_senha') }}">Minha senha</a>
+      <a href="{{ url_for('index') }}">Ver site</a>
+    </nav>
+    <a href="{{ url_for('admin_logout') }}">Sair</a>
+  </aside>
+  <div class="workspace">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="panel" style="margin-bottom:14px;background:{{ '#fde8e8' if cat=='error' else '#e8f6ee' }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </div>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

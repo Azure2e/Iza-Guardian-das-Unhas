@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Entrar · Encanto Gelato</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("encanto-theme");
+        if (t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches))
+          document.documentElement.classList.add("dark");
+      } catch (e) {}
+    })();
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}" />
+</head>
+<body class="login-screen">
+  <button type="button" class="theme-toggle" data-theme-toggle aria-label="Alternar tema"
+    style="position:fixed;top:20px;right:20px;z-index:5;width:44px;height:44px">🌙</button>
+  <form method="post" class="login-card">
+    <div style="text-align:center;margin-bottom:8px">
+      <span style="display:inline-grid;place-items:center;width:52px;height:52px;border-radius:50%;background:linear-gradient(145deg,#ffd4c8,#d14b5c 50%,#6f9a6a);box-shadow:0 10px 24px rgba(209,75,92,.35)">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M12 3c3.2 0 6 2.4 6 5.8 0 4.6-6 11.2-6 11.2S6 13.4 6 8.8C6 5.4 8.8 3 12 3Z" fill="#fff"/>
+          <circle cx="12" cy="9" r="2.2" fill="#a12d3d"/>
+        </svg>
+      </span>
+    </div>
+    <p style="text-align:center;letter-spacing:.22em;text-transform:uppercase;font-size:11px;color:#d14b5c;font-weight:600;margin:12px 0 0">área reservada</p>
+    <h1 class="display" style="text-align:center;font-size:2.1rem;margin:10px 0 28px">Encanto Gelato</h1>
+    {% with messages = get_flashed_messages() %}
+      {% for m in messages %}<p style="color:#a12d3d;font-size:.9rem;background:#fde8e8;padding:10px 12px;border-radius:12px">{{ m }}</p>{% endfor %}
+    {% endwith %}
+    <label style="font-size:.85rem;font-weight:500;opacity:.8">Usuário</label>
+    <input class="field" name="user" autocomplete="username" required />
+    <label style="display:block;margin-top:14px;font-size:.85rem;font-weight:500;opacity:.8">Senha</label>
+    <input class="field" name="password" type="password" autocomplete="current-password" required />
+    <button class="btn btn-berry" style="width:100%;margin-top:22px;padding:14px">Entrar com segurança</button>
+    <p style="font-size:.78rem;opacity:.5;margin-top:18px;text-align:center">
+      Sessão expira em 30 min de inatividade.
+    </p>
+  </form>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Garantia e qualidade — Encanto Gelato{% endblock %}
+{% block content %}
+<section class="wrap" style="padding:56px 0 72px;max-width:760px">
+  <p class="kicker">confiança</p>
+  <h1 class="display" style="font-size:clamp(2.4rem,5vw,3.4rem);margin:10px 0 16px">
+    🛡️ Garantia e qualidade — 60 dias
+  </h1>
+  <p class="lede" style="max-width:100%">
+    Na Encanto Gelato, a qualidade do que servimos é compromisso. Seguimos o Código de Defesa do Consumidor e tratamos cada pedido com transparência.
+  </p>
+
+  <div class="card" style="margin-top:28px">
+    <div class="card-body" style="line-height:1.6">
+      <h2 class="display" style="font-size:1.5rem;margin:0 0 12px">O que cobrimos</h2>
+      <p>
+        Nossos potes para viagem, produtos lacrados e pedidos montados na casa têm
+        <strong>garantia de qualidade</strong>. Se houver problema de fabricação, conservação inadequada nossa ou erro no pedido, resolvemos com você.
+      </p>
+
+      <h3 style="margin:28px 0 10px">Como funciona</h3>
+      <ol style="padding-left:1.2rem;margin:0">
+        <li style="margin-bottom:8px">Deu problema? Fale no WhatsApp <strong>(11) 99999-0000</strong> em até <strong>60 dias</strong> após a compra (para potes e itens lacrados) ou no mesmo dia do pedido (consumo na loja / delivery).</li>
+        <li style="margin-bottom:8px">Envie foto ou vídeo do produto e o número do pedido, se tiver.</li>
+        <li style="margin-bottom:8px">Avaliamos e, quando couber, <strong>trocamos o produto</strong> ou <strong>devolvemos o valor em até 7 dias</strong> (via PIX).</li>
+      </ol>
+
+      <h3 style="margin:28px 0 10px">O que a garantia não cobre</h3>
+      <ul style="padding-left:1.2rem;margin:0">
+        <li style="margin-bottom:6px">Mau uso, armazenamento inadequado em casa (ex.: gelo derretido por falta de refrigeração)</li>
+        <li style="margin-bottom:6px">Atraso na retirada ou no consumo após a entrega</li>
+        <li style="margin-bottom:6px">Preferência de sabor (não gostei do gosto), sem defeito</li>
+        <li style="margin-bottom:6px">Danos por transporte próprio após a retirada na loja</li>
+      </ul>
+
+      <h3 style="margin:28px 0 10px">Prazo legal</h3>
+      <p>
+        Seguimos o <strong>Código de Defesa do Consumidor — Art. 26</strong>.
+        Seu direito de reclamar de vícios aparentes ou de fácil constatação é garantido.
+        Produtos perecíveis exigem reclamação imediata sempre que possível.
+      </p>
+
+      <h3 style="margin:28px 0 10px">Assistência e suporte</h3>
+      <p>
+        Se precisar de ajuda depois do prazo da garantia comercial, fale conosco.
+        Atendemos na loja física na <strong>Rua das Cerejeiras, 120 — Centro</strong>
+        e pelo WhatsApp. Queremos que você volte — e que confie na casa.
+      </p>
+
+      <p style="margin-top:28px;padding:14px 16px;border-radius:16px;background:rgba(209,75,92,.08);border:1px solid var(--line)">
+        ✅ Em toda a carta: <strong>compromisso de qualidade Encanto Gelato</strong>
+      </p>
+    </div>
+  </div>
+
+  <p style="margin-top:28px;display:flex;gap:12px;flex-wrap:wrap">
+    <a class="btn btn-berry" href="{{ url_for('contato') }}">Falar com a loja</a>
+    <a class="btn btn-ghost" href="{{ url_for('cardapio') }}">Ver a carta</a>
+  </p>
+</section>
+{% endblock %}

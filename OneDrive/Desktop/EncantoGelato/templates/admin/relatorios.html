@@ -1,0 +1,35 @@
+{% extends "admin/base.html" %}
+{% block title %}Relatórios{% endblock %}
+{% block content %}
+<h1 class="display" style="margin-top:0">Relatórios</h1>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+  <div class="stat"><small>Hoje</small><b>{{ today_total | brl }}</b><div>{{ today_orders | length }} pedidos</div></div>
+  <div class="stat"><small>Acumulado</small><b>{{ all_total | brl }}</b><div>{{ all_count }} pedidos</div></div>
+  <div class="stat"><small>Ticket médio</small><b>{{ ((all_total / all_count) if all_count else 0) | brl }}</b></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px">
+  <div class="panel">
+    <h2 style="margin-top:0">Por tipo</h2>
+    {% for k, v in by_type.items() %}
+    <p style="display:flex;justify-content:space-between"><span>{{ TYPE_LABEL.get(k, k) }}</span><b>{{ v | brl }}</b></p>
+    {% else %}<p>Sem dados.</p>{% endfor %}
+  </div>
+  <div class="panel">
+    <h2 style="margin-top:0">Pagamentos (PIX)</h2>
+    {% for k, v in by_pay.items() %}
+    <p style="display:flex;justify-content:space-between"><span>{{ k.upper() }}</span><b>{{ v | brl }}</b></p>
+    {% else %}<p>Sem dados.</p>{% endfor %}
+  </div>
+</div>
+<div class="panel" style="margin-top:16px">
+  <h2 style="margin-top:0">Itens vendidos</h2>
+  <table class="table">
+    <thead><tr><th>Produto</th><th>Qtd</th><th>Receita</th></tr></thead>
+    <tbody>
+    {% for name, qtd, rec in items %}
+    <tr><td>{{ name }}</td><td>{{ qtd }}</td><td>{{ rec | brl }}</td></tr>
+    {% else %}<tr><td colspan="3">Ainda sem vendas.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

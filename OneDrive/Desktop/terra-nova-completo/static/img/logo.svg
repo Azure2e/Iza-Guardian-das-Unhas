@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Logo VT Terra Nova">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C6DE6A"/>
+      <stop offset="55%" stop-color="#8FB83A"/>
+      <stop offset="100%" stop-color="#5E8A22"/>
+    </linearGradient>
+    <linearGradient id="inner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#16301A"/>
+      <stop offset="100%" stop-color="#0C1A10"/>
+    </linearGradient>
+  </defs>
+  <circle cx="60" cy="60" r="56" fill="url(#g)"/>
+  <circle cx="60" cy="60" r="46" fill="url(#inner)"/>
+  <path d="M28 42h26c7.2 0 12 3.8 12 10.2 0 4.6-2.5 7.8-6.4 9.3 4.8 1.4 8 5.2 8 10.6 0 7.2-5.5 11.9-14 11.9H28V42zm12.2 16.4h11.2c3.4 0 5.3-1.6 5.3-4.3s-1.9-4.1-5.3-4.1H40.2v8.4zm0 20.2h13c3.8 0 6-1.8 6-4.7 0-2.9-2.2-4.6-6-4.6h-13v9.3z" fill="#D4E86A"/>
+  <path d="M74 42h18.4v8.6H86.2V78H74.2V50.6H68V42h6z" fill="#F3F7D8"/>
+  <circle cx="96" cy="28" r="7" fill="#E8F39A" opacity=".9"/>
+</svg>

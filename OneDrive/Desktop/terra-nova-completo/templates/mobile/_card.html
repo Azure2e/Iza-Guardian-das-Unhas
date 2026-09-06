@@ -1,0 +1,12 @@
+<article class="card">
+  <a href="{% url 'store:app_produto' p.slug %}">
+    <div class="thumb">{{ p.emoji }}</div>
+    <div style="font-size:13px;min-height:36px">{{ p.name }}</div>
+    <div class="price">R$ {{ p.price|floatformat:2 }}</div>
+  </a>
+  <form method="post" action="{% url 'store:adicionar' p.id %}" style="margin-top:8px">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <button class="btn btn-cana" type="submit">Adicionar</button>
+  </form>
+</article>

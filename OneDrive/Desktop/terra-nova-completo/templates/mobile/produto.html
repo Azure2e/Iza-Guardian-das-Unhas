@@ -1,0 +1,17 @@
+{% extends 'mobile/base.html' %}
+{% block title %}{{ product.name }} · App TERRA NOVA{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="thumb" style="height:180px;font-size:72px">{{ product.emoji }}</div>
+  <div class="muted">{{ product.category.name }}</div>
+  <h1 style="font-family:var(--serif);font-size:26px;margin:6px 0">{{ product.name }}</h1>
+  <p class="muted">{{ product.description }}</p>
+  <p class="price">R$ {{ product.price|floatformat:2 }}</p>
+  <form method="post" action="{% url 'store:adicionar' product.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{% url 'store:app_carrinho' %}">
+    <input class="qty" type="number" name="qty" value="1" min="1" max="{{ product.stock }}">
+    <button class="btn btn-cana" type="submit" style="margin-top:10px">Adicionar ao carrinho</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'mobile/base.html' %}
+{% block title %}PIX · App TERRA NOVA{% endblock %}
+{% block content %}
+<div class="kicker">CHECKOUT</div>
+<h1 style="font-family:var(--serif);font-size:26px">Pagar com PIX</h1>
+<form method="post" class="card">
+  {% csrf_token %}
+  <input type="hidden" name="signature" value="{{ signature }}">
+  <div class="field"><label>Nome</label><input name="name" required value="{{ name|default:'' }}"></div>
+  <div class="field"><label>E-mail</label><input type="email" name="email" required value="{{ email|default:'' }}"></div>
+  <div class="field"><label>WhatsApp</label><input name="phone" value="{{ phone|default:'' }}"></div>
+  <p class="price">R$ {{ total|floatformat:2 }}</p>
+  <label style="display:block;margin:8px 0"><input type="radio" name="pay_method" value="pix" checked> PIX</label>
+  <label style="display:block;margin:8px 0"><input type="radio" name="pay_method" value="stripe"> Cartão Stripe{% if not stripe_ok %} (teste){% endif %}</label>
+  <button class="btn btn-cana" type="submit">Pagar agora</button>
+</form>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% load humanize %}
+<article class="card">
+  <a href="{% url 'store:produto' p.slug %}">
+    <div class="thumb">{{ p.emoji }}</div>
+    <div class="tag">{{ p.category.name }}</div>
+    <h3 style="font-size:20px">{{ p.name }}</h3>
+    <p class="muted" style="min-height:44px">{{ p.description|truncatechars:90 }}</p>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span class="price">R$ {{ p.price|floatformat:2 }}</span>
+      <span class="muted">est. {{ p.stock }}</span>
+    </div>
+  </a>
+  <form method="post" action="{% url 'store:adicionar' p.id %}" style="margin-top:12px">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.path }}">
+    <button class="btn btn-cana" type="submit" style="width:100%">Adicionar ao carrinho</button>
+  </form>
+</article>

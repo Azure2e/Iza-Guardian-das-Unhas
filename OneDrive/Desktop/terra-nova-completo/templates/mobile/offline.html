@@ -1,0 +1,11 @@
+{% extends 'mobile/base.html' %}
+{% block title %}Offline · TERRA NOVA{% endblock %}
+{% block content %}
+<section class="hero-app">
+  <div class="kicker">MODO OFFLINE</div>
+  <h1>Você está sem rede.</h1>
+  <p class="muted">O app continua com o catálogo salvo neste aparelho. Carrinho e PIX precisam de conexão.</p>
+</section>
+<div class="grid" id="offline-catalog"></div>
+<a class="btn btn-cana" href="{% url 'store:app_inicio' %}" style="display:block;text-align:center;margin-top:16px">Tentar de novo</a>
+{% endblock %}

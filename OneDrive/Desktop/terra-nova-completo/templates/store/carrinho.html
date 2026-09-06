@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Carrinho · TERRA NOVA{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="kicker">CHECKOUT SEGURO</div>
+  <h1>Seu carrinho</h1>
+  <div class="secure-box">Módulo de segurança ativo · token de sessão · preços recalculados no servidor · CSRF · limite de quantidade · assinatura HMAC do estado do carrinho.</div>
+  <div class="cart-layout">
+    <div class="card">
+      {% if lines %}
+      <form method="post" action="{% url 'store:atualizar_carrinho' %}">
+        {% csrf_token %}
+        <input type="hidden" name="signature" value="{{ signature }}">
+        {% for line in lines %}
+          <div class="line">
+            <div class="thumb" style="height:64px;font-size:28px;margin:0">{{ line.product.emoji }}</div>
+            <div>
+              <strong>{{ line.product.name }}</strong>
+              <div class="muted">R$ {{ line.product.price|floatformat:2 }}</div>
+            </div>
+            <input class="qty" type="number" name="qty_{{ line.product.id }}" value="{{ line.qty }}" min="0" max="20">
+            <strong>R$ {{ line.total|floatformat:2 }}</strong>
+          </div>
+        {% endfor %}
+        <button class="btn btn-ghost" type="submit" style="margin-top:14px">Atualizar</button>
+      </form>
+      {% else %}
+        <p class="muted">Carrinho vazio. <a href="{% url 'store:produtos' %}">Ver produtos</a></p>
+      {% endif %}
+    </div>
+    <aside class="card">
+      <h3>Resumo</h3>
+      <p>Subtotal <strong style="float:right">R$ {{ subtotal|floatformat:2 }}</strong></p>
+      <p>Desconto <strong style="float:right">− R$ {{ discount_amount|floatformat:2 }}</strong></p>
+      <p class="price">Total R$ {{ total|floatformat:2 }}</p>
+      <form method="post" action="{% url 'store:aplicar_cupom' %}">
+        {% csrf_token %}
+        <input type="hidden" name="signature" value="{{ signature }}">
+        <label>Cupom</label>
+        <div class="row-2">
+          <input name="code" placeholder="TERRA10" value="{{ discount.code|default:'' }}">
+          <button class="btn btn-ghost" type="submit">Aplicar</button>
+        </div>
+      </form>
+      {% if lines %}
+        <a class="btn btn-cana" href="{% url 'store:checkout' %}" style="display:block;text-align:center;margin-top:16px">Pagar com PIX</a>
+      {% endif %}
+    </aside>
+  </div>
+</section>
+{% endblock %}

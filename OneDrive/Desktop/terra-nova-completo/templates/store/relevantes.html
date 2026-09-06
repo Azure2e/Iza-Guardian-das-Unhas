@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Mais relevantes · TERRA NOVA{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="kicker">MÓDULO</div>
+  <h1>Mais relevantes</h1>
+  <p class="lead">Itens que a equipe TERRA NOVA marca como prioridade: alta procura, campanhas e indicações clínicas.</p>
+  <div class="grid-3" style="margin-top:24px">
+    {% for p in products %}
+      {% include 'store/_card.html' %}
+    {% empty %}
+      <p class="muted">Nenhum item marcado como relevante.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

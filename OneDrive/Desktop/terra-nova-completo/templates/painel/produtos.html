@@ -1,0 +1,21 @@
+{% extends 'painel/base_painel.html' %}
+{% block painel %}
+<div class="section-head">
+  <div><div class="kicker">CATÁLOGO</div><h1>Produtos</h1></div>
+  <a class="btn btn-cana" href="{% url 'store:painel_produto_novo' %}">Novo produto</a>
+</div>
+<table>
+  <tr><th></th><th>Nome</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Relevante</th><th></th></tr>
+  {% for p in products %}
+  <tr>
+    <td>{{ p.emoji }}</td>
+    <td>{{ p.name }}</td>
+    <td>{{ p.category.name }}</td>
+    <td>R$ {{ p.price }}</td>
+    <td>{{ p.stock }}</td>
+    <td>{% if p.featured %}★{% else %}–{% endif %}</td>
+    <td><a href="{% url 'store:painel_produto_editar' p.pk %}">Editar</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

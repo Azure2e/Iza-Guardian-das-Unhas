@@ -1,0 +1,17 @@
+{% extends 'painel/base_painel.html' %}
+{% block painel %}
+<h1>Pedidos PIX</h1>
+<table>
+  <tr><th>ID</th><th>Cliente</th><th>Total</th><th>Cupom</th><th>Status</th><th>Quando</th></tr>
+  {% for o in orders %}
+  <tr>
+    <td><a href="{% url 'store:pedido' o.public_id %}">{{ o.public_id.hex|slice:':8'|upper }}</a></td>
+    <td>{{ o.customer_name }}<br><span class="muted">{{ o.customer_email }}</span></td>
+    <td>R$ {{ o.total }}</td>
+    <td>{{ o.discount_code|default:'—' }}</td>
+    <td>{{ o.get_status_display }}</td>
+    <td>{{ o.created_at }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

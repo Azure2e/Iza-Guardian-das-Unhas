@@ -1,0 +1,19 @@
+{% extends "painel/base_painel.html" %}
+{% block painel %}
+<div class="section-head">
+  <div><h1>Administradores</h1></div>
+  <a class="btn btn-cana" href="{% url "accounts:cadastrar_admin" %}">Cadastrar novo</a>
+</div>
+<table>
+  <tr><th>Usuário</th><th>Nome</th><th>E-mail</th><th>Função</th><th>Criado por</th></tr>
+  {% for row in rows %}
+  <tr>
+    <td>{{ row.user.username }}</td>
+    <td>{{ row.user.get_full_name|default:"—" }}</td>
+    <td>{{ row.user.email }}</td>
+    <td>{{ row.role }}</td>
+    <td>{{ row.created_by|default:"—" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

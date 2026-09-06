@@ -1,0 +1,35 @@
+{% extends 'painel/base_painel.html' %}
+{% block painel %}
+<div class="kicker">PAINEL ADMINISTRATIVO</div>
+<h1>Olá, {{ request.user.first_name|default:request.user.username }}.</h1>
+<p class="muted">Operação TERRA NOVA em tempo real — estoque, PIX e equipe.</p>
+<div class="stat-grid" style="margin:22px 0">
+  <div class="stat"><span class="muted">Produtos</span><b>{{ stats.produtos }}</b></div>
+  <div class="stat"><span class="muted">Pedidos</span><b>{{ stats.pedidos }}</b></div>
+  <div class="stat"><span class="muted">Faturamento PIX</span><b>R$ {{ stats.faturamento }}</b></div>
+  <div class="stat"><span class="muted">Aguardando PIX</span><b>{{ stats.pendentes }}</b></div>
+  <div class="stat"><span class="muted">Administradores</span><b>{{ stats.admins }}</b></div>
+  <div class="stat"><span class="muted">Cupons ativos</span><b>{{ stats.cupons }}</b></div>
+</div>
+<div class="grid-3">
+  <article class="card" style="grid-column: span 2">
+    <h3>Pedidos recentes</h3>
+    <table>
+      <tr><th>Cliente</th><th>Total</th><th>Status</th></tr>
+      {% for o in recent_orders %}
+      <tr>
+        <td>{{ o.customer_name }}</td>
+        <td>R$ {{ o.total }}</td>
+        <td><span class="badge {% if o.status == 'paid' %}badge-ok{% else %}badge-wait{% endif %}">{{ o.get_status_display }}</span></td>
+      </tr>
+      {% empty %}<tr><td colspan="3" class="muted">Nenhum pedido ainda.</td></tr>{% endfor %}
+    </table>
+  </article>
+  <article class="card">
+    <h3>Estoque baixo</h3>
+    {% for p in low_stock %}
+      <p>{{ p.emoji }} {{ p.name }} <span style="float:right">{{ p.stock }}</span></p>
+    {% empty %}<p class="muted">Estoque confortável.</p>{% endfor %}
+  </article>
+</div>
+{% endblock %}

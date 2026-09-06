@@ -1,0 +1,20 @@
+{% extends 'mobile/base.html' %}
+{% block title %}Produtos · App TERRA NOVA{% endblock %}
+{% block content %}
+<div class="kicker">CATÁLOGO</div>
+<h1 style="font-family:var(--serif);font-size:26px">Produtos</h1>
+<form method="get">
+  <div class="search" style="margin:10px 0"><input name="q" value="{{ q }}" placeholder="Pesquisar produtos"></div>
+  <select name="categoria" onchange="this.form.submit()" style="width:100%;background:#101910;color:var(--ink);border:1px solid var(--stroke);border-radius:12px;padding:10px">
+    <option value="">Todas as categorias</option>
+    {% for c in categories %}
+      <option value="{{ c.slug }}" {% if cat == c.slug %}selected{% endif %}>{{ c.icon }} {{ c.name }}</option>
+    {% endfor %}
+  </select>
+</form>
+<div class="grid" style="margin-top:14px">
+  {% for p in products %}{% include 'mobile/_card.html' %}{% empty %}
+    <p class="muted">Nada encontrado.</p>
+  {% endfor %}
+</div>
+{% endblock %}

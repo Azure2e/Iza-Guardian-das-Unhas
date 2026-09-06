@@ -1,0 +1,33 @@
+{% extends 'mobile/base.html' %}
+{% block title %}Conta · App TERRA NOVA{% endblock %}
+{% block content %}
+<div class="kicker">CLÍNICA</div>
+<h1 style="font-family:var(--serif);font-size:26px">TERRA NOVA</h1>
+<div class="card">
+  <p>Monograma VT · verde cana. Farmácia, clínica e PIX no mesmo nexo.</p>
+  <p class="muted">Atendimento 8h–20h<br>{{ clinic_pix_key }}</p>
+</div>
+<div class="card" style="margin-top:12px">
+  <h3>Notificações nativas</h3>
+  <p class="muted" id="push-state">Receba PIX confirmado, promoções e avisos da clínica.</p>
+  <div class="field"><input id="push-email" type="email" placeholder="Seu e-mail (para avisar o PIX)"></div>
+  <button class="btn btn-cana" type="button" id="push-toggle">Ativar notificações</button>
+  <p class="muted" style="margin-top:8px">No iPhone, instale o app na Tela de Início antes de ativar (iOS 16.4+).</p>
+</div>
+<div class="card" style="margin-top:12px">
+  <h3>Instalar no celular</h3>
+  <p class="muted">Android: menu do Chrome → Instalar app.<br>iPhone: Compartilhar → Adicionar à Tela de Início.</p>
+</div>
+<div class="card" style="margin-top:12px">
+  <h3>Garantia</h3>
+  <p class="muted">7 dias para itens lacrados. PIX confirmado pelo gateway.</p>
+</div>
+<a class="btn btn-cana" href="{% url 'store:baixar_zip' %}" style="display:block;text-align:center;margin-top:14px">Baixar projeto no celular</a>
+<a class="btn btn-ghost" href="{% url 'store:app_compat' %}" style="display:block;text-align:center;margin-top:14px">Testar Safari / iOS</a>
+<a class="btn btn-ghost" href="{% url 'store:inicio' %}" style="display:block;text-align:center;margin-top:14px">Abrir site completo</a>
+{% if user.is_staff %}
+  <a class="btn btn-cana" href="{% url 'store:painel' %}" style="display:block;text-align:center;margin-top:10px">Painel admin</a>
+{% else %}
+  <a class="btn btn-ghost" href="{% url 'accounts:login' %}" style="display:block;text-align:center;margin-top:10px">Entrar como admin</a>
+{% endif %}
+{% endblock %}

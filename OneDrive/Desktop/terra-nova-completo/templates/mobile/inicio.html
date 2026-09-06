@@ -1,0 +1,20 @@
+{% extends 'mobile/base.html' %}
+{% block title %}Início · App TERRA NOVA{% endblock %}
+{% block content %}
+<section class="hero-app">
+  <div class="kicker">NO BOLSO</div>
+  <h1>Cuidado VT na palma da mão.</h1>
+  <p class="muted">Busque produtos, monte o carrinho e pague com PIX sem sair do app.</p>
+</section>
+<form class="search" action="{% url 'store:app_produtos' %}" method="get">
+  <input name="q" placeholder="Pesquisar ração, pulgas, vacina...">
+</form>
+<h2 style="font-family:var(--serif);font-size:22px;margin:18px 0 10px">Mais relevantes</h2>
+<div class="grid">
+  {% for p in featured %}{% include 'mobile/_card.html' %}{% endfor %}
+</div>
+<h2 style="font-family:var(--serif);font-size:22px;margin:18px 0 10px">Farmácia</h2>
+<div class="grid">
+  {% for p in latest %}{% include 'mobile/_card.html' %}{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'painel/base_painel.html' %}
+{% block title %}Push · TERRA NOVA{% endblock %}
+{% block painel %}
+<div class="kicker">APP</div>
+<h1>Notificações push</h1>
+<div class="stat-grid" style="margin:18px 0">
+  <div class="stat"><span class="muted">Aparelhos ativos</span><b>{{ active_count }}</b></div>
+  <div class="stat"><span class="muted">VAPID</span><b>{% if vapid %}configurado{% else %}ausente{% endif %}</b></div>
+  <div class="stat"><span class="muted">Inscritos</span><b>{{ devices|length }}</b></div>
+</div>
+<form method="post" class="card form-grid" style="max-width:720px">
+  {% csrf_token %}
+  <div><label>Título</label><input name="title" value="TERRA NOVA" required></div>
+  <div><label>Mensagem</label><textarea name="body" rows="3" required>Antipulgas com 10% off hoje na farmácia.</textarea></div>
+  <div><label>Abrir URL</label><input name="url" value="/m/relevantes/"></div>
+  <button class="btn btn-cana" type="submit">Enviar para todos os aparelhos</button>
+</form>
+<article class="card" style="margin-top:16px">
+  <h3>Inscrições</h3>
+  <table>
+    <tr><th>E-mail</th><th>Ativo</th><th>Desde</th></tr>
+    {% for d in devices %}
+    <tr>
+      <td>{{ d.email|default:"—" }}</td>
+      <td>{% if d.active %}sim{% else %}não{% endif %}</td>
+      <td>{{ d.created_at }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="3" class="muted">Ninguém ativou ainda. Peça para abrir Conta no app.</td></tr>
+    {% endfor %}
+  </table>
+</article>
+{% endblock %}

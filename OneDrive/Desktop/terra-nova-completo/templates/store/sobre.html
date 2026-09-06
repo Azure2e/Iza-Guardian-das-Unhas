@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Sobre · TERRA NOVA{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <div class="kicker">SOBRE</div>
+    <h1>Uma clínica com raiz e um nexo digital.</h1>
+    <p class="lead">A TERRA NOVA nasceu para unir atendimento clínico, farmácia veterinária e uma loja online segura. O monograma VT em verde cana é o selo de quem escolhe o cuidado contínuo — da consulta ao produto que vai para casa.</p>
+    <p class="muted">Equipe multidisciplinar · protocolos claros · pagamento PIX · garantia documentada.</p>
+  </div>
+  <div class="hero-card">
+    <img src="{% static 'img/logo.svg' %}" alt="VT" class="logo-xl">
+    <h2>Identidade</h2>
+    <p>Nome: <strong>TERRA NOVA</strong><br>Monograma: <strong>VT</strong><br>Cor: <strong>verde cana</strong> (#A8C15A)</p>
+  </div>
+</section>
+<div class="grid-3" style="margin-bottom:40px">
+  <article class="card"><h3>Clínica</h3><p class="muted">Consultas, vacinas e acompanhamento com prontuário digital.</p></article>
+  <article class="card"><h3>Farmácia</h3><p class="muted">Linha de produtos com descrição, preço e estoque real.</p></article>
+  <article class="card"><h3>Nexo</h3><p class="muted">App, site e painel administrativo no mesmo ecossistema Django.</p></article>
+</div>
+{% endblock %}

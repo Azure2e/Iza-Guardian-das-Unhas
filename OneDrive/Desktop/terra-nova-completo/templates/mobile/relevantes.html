@@ -1,0 +1,11 @@
+{% extends 'mobile/base.html' %}
+{% block title %}Relevantes · App TERRA NOVA{% endblock %}
+{% block content %}
+<div class="kicker">DESTAQUES</div>
+<h1 style="font-family:var(--serif);font-size:26px">Mais relevantes</h1>
+<div class="grid" style="margin-top:14px">
+  {% for p in products %}{% include 'mobile/_card.html' %}{% empty %}
+    <p class="muted">Sem destaques agora.</p>
+  {% endfor %}
+</div>
+{% endblock %}

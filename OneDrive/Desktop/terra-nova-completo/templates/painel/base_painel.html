@@ -1,0 +1,38 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  {% include 'includes/meta_mobile.html' %}
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}Painel · TERRA NOVA{% endblock %}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<div class="painel-shell">
+  <aside class="side">
+    <a class="brand" href="{% url 'store:painel' %}" style="margin-bottom:22px">
+      <img src="{% static 'img/logo.svg' %}" alt="VT" width="42">
+      <div>TERRA NOVA<small>PAINEL VT</small></div>
+    </a>
+    <a href="{% url 'store:painel' %}">Visão geral</a>
+    <a href="{% url 'store:painel_produtos' %}">Produtos</a>
+    <a href="{% url 'store:painel_descontos' %}">Descontos</a>
+    <a href="{% url 'store:painel_pedidos' %}">Pedidos PIX</a>
+    <a href="{% url 'store:painel_pagamentos' %}">Pagamentos</a>
+    <a href="{% url 'store:painel_push' %}">Push / App</a>
+    <a href="{% url 'store:painel_admins' %}">Administradores</a>
+    <a href="{% url 'accounts:cadastrar_admin' %}">Cadastrar admin</a>
+    <hr style="border-color:var(--stroke)">
+    <a href="{% url 'store:inicio' %}">Ver loja</a>
+    <a href="{% url 'accounts:logout' %}">Sair</a>
+  </aside>
+  <div class="painel-main">
+    {% if messages %}
+      <ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% block painel %}{% endblock %}
+  </div>
+</div>
+</body>
+</html>

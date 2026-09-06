@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Produtos · TERRA NOVA{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="kicker">CATÁLOGO</div>
+  <h1>Produtos veterinários</h1>
+  <p class="lead">Pesquise por nome ou descrição. Filtre por categoria. Preços e estoque atualizados no servidor.</p>
+  <form method="get" class="row-2" style="margin:20px 0;align-items:end">
+    <div>
+      <label>Pesquisar</label>
+      <input name="q" value="{{ q }}" placeholder="ração, antipulgas, vacina...">
+    </div>
+    <div>
+      <label>Categoria</label>
+      <select name="categoria" onchange="this.form.submit()">
+        <option value="">Todas</option>
+        {% for c in categories %}
+          <option value="{{ c.slug }}" {% if cat == c.slug %}selected{% endif %}>{{ c.icon }} {{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+  <div class="grid-4">
+    {% for p in products %}
+      {% include 'store/_card.html' %}
+    {% empty %}
+      <p class="muted">Nenhum produto encontrado para essa busca.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

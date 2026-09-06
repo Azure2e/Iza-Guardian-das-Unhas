@@ -1,0 +1,22 @@
+{% extends 'painel/base_painel.html' %}
+{% block painel %}
+<h1>Cadastrar administrador</h1>
+<form method="post" class="card form-grid" style="max-width:640px">
+  {% csrf_token %}
+  <div class="row-2">
+    <div><label>Nome</label>{{ form.first_name }}</div>
+    <div><label>Sobrenome</label>{{ form.last_name }}</div>
+  </div>
+  <div class="row-2">
+    <div><label>Usuário</label>{{ form.username }}</div>
+    <div><label>E-mail</label>{{ form.email }}</div>
+  </div>
+  <div class="row-2">
+    <div><label>Senha</label>{{ form.password }}</div>
+    <div><label>Confirmar</label>{{ form.password2 }}</div>
+  </div>
+  <div><label>Função</label>{{ form.role }}</div>
+  {% if form.non_field_errors %}<div class="messages"><li class="error">{{ form.non_field_errors }}</li></div>{% endif %}
+  <button class="btn btn-cana" type="submit">Criar acesso</button>
+</form>
+{% endblock %}

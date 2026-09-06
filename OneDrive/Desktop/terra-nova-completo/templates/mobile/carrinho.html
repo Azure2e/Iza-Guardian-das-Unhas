@@ -1,0 +1,40 @@
+{% extends 'mobile/base.html' %}
+{% block title %}Carrinho · App TERRA NOVA{% endblock %}
+{% block content %}
+<div class="kicker">SEGURO</div>
+<h1 style="font-family:var(--serif);font-size:26px">Carrinho</h1>
+{% if lines %}
+<form method="post" action="{% url 'store:atualizar_carrinho' %}">
+  {% csrf_token %}
+  <input type="hidden" name="signature" value="{{ signature }}">
+  <input type="hidden" name="next" value="{% url 'store:app_carrinho' %}">
+  {% for line in lines %}
+  <div class="line">
+    <div class="thumb" style="height:52px;font-size:24px;margin:0">{{ line.product.emoji }}</div>
+    <div>
+      <div>{{ line.product.name }}</div>
+      <div class="muted">R$ {{ line.product.price|floatformat:2 }}</div>
+    </div>
+    <input class="qty" type="number" name="qty_{{ line.product.id }}" value="{{ line.qty }}" min="0" max="20">
+  </div>
+  {% endfor %}
+  <button class="btn btn-ghost" type="submit" style="margin:12px 0">Atualizar</button>
+</form>
+<div class="card">
+  <p>Subtotal <strong style="float:right">R$ {{ subtotal|floatformat:2 }}</strong></p>
+  <p>Desconto <strong style="float:right">− R$ {{ discount_amount|floatformat:2 }}</strong></p>
+  <p class="price">Total R$ {{ total|floatformat:2 }}</p>
+  <form method="post" action="{% url 'store:aplicar_cupom' %}">
+    {% csrf_token %}
+    <input type="hidden" name="signature" value="{{ signature }}">
+    <input type="hidden" name="next" value="{% url 'store:app_carrinho' %}">
+    <div class="field"><input name="code" placeholder="Cupom TERRA10" value="{{ discount.code|default:'' }}"></div>
+    <button class="btn btn-ghost" type="submit">Aplicar cupom</button>
+  </form>
+  <a class="btn btn-cana" href="{% url 'store:app_checkout' %}" style="display:block;text-align:center;margin-top:12px">Pagar com PIX</a>
+</div>
+{% else %}
+  <p class="muted">Carrinho vazio.</p>
+  <a class="btn btn-cana" href="{% url 'store:app_produtos' %}">Ver produtos</a>
+{% endif %}
+{% endblock %}

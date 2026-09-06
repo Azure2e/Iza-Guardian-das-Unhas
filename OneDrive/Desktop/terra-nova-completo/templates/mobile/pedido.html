@@ -1,0 +1,36 @@
+{% extends 'mobile/base.html' %}
+{% block title %}Pedido · App TERRA NOVA{% endblock %}
+{% block content %}
+<div class="kicker">PEDIDO {{ order.public_id.hex|slice:':8'|upper }}</div>
+<h1 style="font-family:var(--serif);font-size:26px">{% if order.status == 'paid' %}Pago{% else %}PIX{% endif %}</h1>
+<div class="card" style="text-align:center">
+  {% if order.status == 'pending' %}
+    {% if order.qr_base64 %}
+      <img src="data:image/png;base64,{{ order.qr_base64 }}" alt="PIX" style="width:220px;background:#fff;padding:10px;border-radius:16px">
+    {% else %}
+      <img src="{% url 'store:pix_qr' order.public_id %}" alt="PIX" style="width:220px;background:#fff;padding:10px;border-radius:16px">
+    {% endif %}
+    <p class="price">R$ {{ order.total|floatformat:2 }}</p>
+    <p class="copy" id="pix-copy">{{ order.pix_payload }}</p>
+    <button class="btn btn-ghost" type="button" onclick="navigator.clipboard.writeText(document.getElementById('pix-copy').innerText)">Copiar código</button>
+    <form method="post" action="{% url 'store:confirmar_pagamento' order.public_id %}" style="margin-top:10px">
+      {% csrf_token %}
+      <button class="btn btn-cana" type="submit">{% if order.gateway == 'mercadopago' %}Consultar pagamento{% else %}Simular confirmação{% endif %}</button>
+    </form>
+  {% elif order.status == 'paid' %}
+    <div class="thumb">✅</div>
+    <p>Pagamento confirmado, {{ order.customer_name }}.</p>
+  {% else %}
+    <p class="muted">Pedido cancelado.</p>
+  {% endif %}
+</div>
+{% if order.status == 'pending' %}
+<script>
+  setInterval(async () => {
+    const r = await fetch("{% url 'store:pedido_status' order.public_id %}");
+    const d = await r.json();
+    if (d.status !== 'pending') location.reload();
+  }, 4000);
+</script>
+{% endif %}
+{% endblock %}

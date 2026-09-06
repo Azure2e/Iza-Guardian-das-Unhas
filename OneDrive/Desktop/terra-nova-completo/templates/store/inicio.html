@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load static humanize %}
+{% block title %}Início · TERRA NOVA{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <div class="kicker">CLÍNICA · FARMÁCIA · CUIDADO</div>
+    <h1>O nexo veterinário da TERRA NOVA.</h1>
+    <p class="lead">Produtos selecionados, equipe próxima e pagamento instantâneo via PIX. Um espaço verde-cana para quem trata o animal como família.</p>
+    <div class="cta-row">
+      <a class="btn btn-cana" href="{% url 'store:produtos' %}">Ver produtos</a>
+      <a class="btn btn-ghost" href="{% url 'store:relevantes' %}">Mais relevantes</a>
+      <a class="btn btn-ghost" href="{% url 'store:app' %}">Baixar o app</a>
+    </div>
+  </div>
+  <div class="hero-card">
+    <img class="logo-xl" src="{% static 'img/logo.svg' %}" alt="Logo VT verde cana">
+    <p class="vt">VT</p>
+    <p class="muted">Marca TERRA NOVA · monograma VT em verde cana. Farmácia, clínica e loja no mesmo ecossistema.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <div>
+      <div class="kicker">DESTAQUES</div>
+      <h2>Mais relevantes agora</h2>
+    </div>
+    <a class="btn btn-ghost" href="{% url 'store:relevantes' %}">Ver módulo</a>
+  </div>
+  <div class="grid-3">
+    {% for p in featured %}
+      {% include 'store/_card.html' %}
+    {% empty %}
+      <p class="muted">Nenhum destaque cadastrado.</p>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <div>
+      <div class="kicker">FARMÁCIA</div>
+      <h2>Chegando na prateleira</h2>
+    </div>
+    <a class="btn btn-ghost" href="{% url 'store:produtos' %}">Catálogo</a>
+  </div>
+  <div class="grid-4">
+    {% for p in latest %}
+      {% include 'store/_card.html' %}
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

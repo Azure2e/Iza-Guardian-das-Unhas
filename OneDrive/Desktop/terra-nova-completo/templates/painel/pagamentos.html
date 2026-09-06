@@ -1,0 +1,48 @@
+{% extends 'painel/base_painel.html' %}
+{% block title %}Pagamentos · TERRA NOVA{% endblock %}
+{% block painel %}
+<div class="kicker">GATEWAY</div>
+<h1>Pagamentos PIX + Stripe</h1>
+<div class="stat-grid" style="margin:18px 0">
+  <div class="stat"><span class="muted">Provedor</span><b>{% if live %}Mercado Pago{% else %}Local / dev{% endif %}</b></div>
+  <div class="stat"><span class="muted">API</span><b>{{ mode }}</b></div>
+  <div class="stat"><span class="muted">Token</span><b>{% if token_set %}{{ token_prefix }}…{% else %}não configurado{% endif %}</b></div>
+</div>
+<article class="card">
+  <h3>Como ligar o Mercado Pago</h3>
+  <ol class="muted">
+    <li>Crie um app em <a href="https://www.mercadopago.com.br/developers/panel/app" target="_blank">developers.mercadopago.com</a>.</li>
+    <li>Copie o <strong>Access Token</strong> de teste (APP_USR-…) ou o de produção.</li>
+    <li>Exporte no servidor: <code>MP_ACCESS_TOKEN=APP_USR-...</code></li>
+    <li>No painel do MP, cadastre o webhook:<br><code>{{ webhook_url }}</code></li>
+    <li>Tópicos: <strong>Payments</strong> e, se usar Orders API, <strong>Orders</strong>.</li>
+  </ol>
+  <p class="muted">Sem token, a loja emite QR EMV local só para demonstração. Com token, o QR nasce na conta Mercado Pago e o crédito cai lá quando o PIX é pago.</p>
+</article>
+<article class="card" style="margin-top:16px">
+  <h3>Stripe (cartão)</h3>
+  <p class="muted">Status: <strong>{% if stripe_ok %}chave configurada {{ stripe_pk }}…{% else %}não configurado{% endif %}</strong></p>
+  <ol class="muted">
+    <li>Crie a conta em <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener">dashboard.stripe.com/apikeys</a>.</li>
+    <li>PowerShell: <code>$env:STRIPE_SECRET_KEY="sk_test_..."</code></li>
+    <li>Webhook: <code>{{ stripe_webhook }}</code> — evento <strong>checkout.session.completed</strong>.</li>
+    <li>Opcional: <code>$env:STRIPE_WEBHOOK_SECRET="whsec_..."</code></li>
+  </ol>
+</article>
+<article class="card" style="margin-top:16px">
+  <h3>Eventos recentes</h3>
+  <table>
+    <tr><th>Quando</th><th>Tipo</th><th>Pedido</th><th>ID externo</th></tr>
+    {% for e in events %}
+    <tr>
+      <td>{{ e.created_at }}</td>
+      <td>{{ e.event_type }}</td>
+      <td>{% if e.order %}{{ e.order.public_id.hex|slice:':8'|upper }}{% else %}—{% endif %}</td>
+      <td>{{ e.external_id }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4" class="muted">Nenhum evento ainda.</td></tr>
+    {% endfor %}
+  </table>
+</article>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Entrar · Painel TERRA NOVA{% endblock %}
+{% block content %}
+<section class="section" style="max-width:460px;margin:40px auto">
+  <div class="kicker">ADMINISTRAÇÃO</div>
+  <h1>Acesso do administrador</h1>
+  <form method="post" class="card form-grid">
+    {% csrf_token %}
+    <div><label>Usuário</label><input name="username" required></div>
+    <div><label>Senha</label><input type="password" name="password" required></div>
+    <button class="btn btn-cana" type="submit">Entrar no painel</button>
+    <p class="muted">Demo inicial: usuário <strong>admin</strong> / senha <strong>TerraNova@2026</strong></p>
+  </form>
+</section>
+{% endblock %}

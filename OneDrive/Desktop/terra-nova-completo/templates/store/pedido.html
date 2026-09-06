@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Pedido · TERRA NOVA{% endblock %}
+{% block content %}
+<section class="section" style="max-width:640px;margin:0 auto">
+  <div class="kicker">PEDIDO {{ order.public_id.hex|slice:':8'|upper }}</div>
+  <h1>{% if order.status == 'paid' %}Pagamento confirmado{% elif order.status == 'cancelled' %}Pedido cancelado{% else %}Pague com PIX{% endif %}</h1>
+  <div class="card pix-box">
+    <p class="muted">
+      Gateway:
+      <strong>{% if order.gateway == 'mercadopago' %}Mercado Pago{% elif order.gateway == 'stripe' %}Stripe{% else %}Local (dev){% endif %}</strong>
+      {% if order.gateway_status %}· {{ order.gateway_status }}{% endif %}
+    </p>
+    {% if order.status == 'pending' and order.gateway == 'stripe' %}
+      <p class="muted">Valor: <strong class="price">R$ {{ order.total|floatformat:2 }}</strong></p>
+      {% if order.ticket_url %}
+        <p><a class="btn btn-cana" href="{{ order.ticket_url }}">Continuar pagamento no Stripe</a></p>
+      {% endif %}
+      <p class="muted" id="wait-msg">Aguardando confirmação do cartão…</p>
+      <form method="post" action="{% url 'store:confirmar_pagamento' order.public_id %}">
+        {% csrf_token %}
+        <button class="btn btn-ghost" type="submit">{% if order.ticket_url %}Consultar Stripe{% else %}Simular pagamento Stripe (dev){% endif %}</button>
+      </form>
+    {% elif order.status == 'pending' %}
+      {% if order.qr_base64 %}
+        <img src="data:image/png;base64,{{ order.qr_base64 }}" alt="QR Code PIX">
+      {% else %}
+        <img src="{% url 'store:pix_qr' order.public_id %}" alt="QR Code PIX">
+      {% endif %}
+      <p class="muted">Valor: <strong class="price">R$ {{ order.total|floatformat:2 }}</strong></p>
+      <p class="copy" id="pix-copy">{{ order.pix_payload }}</p>
+      <button class="btn btn-ghost" type="button" onclick="navigator.clipboard.writeText(document.getElementById('pix-copy').innerText)">Copiar código PIX</button>
+      {% if order.ticket_url %}
+        <p><a class="btn btn-cana" href="{{ order.ticket_url }}" target="_blank" rel="noopener">Abrir boleto PIX do Mercado Pago</a></p>
+      {% endif %}
+      <p class="muted" id="wait-msg">Aguardando confirmação automática do gateway…</p>
+      {% if order.gateway != 'mercadopago' %}
+      <form method="post" action="{% url 'store:confirmar_pagamento' order.public_id %}">
+        {% csrf_token %}
+        <button class="btn btn-cana" type="submit">Simular confirmação (somente modo local)</button>
+      </form>
+      {% else %}
+      <form method="post" action="{% url 'store:confirmar_pagamento' order.public_id %}">
+        {% csrf_token %}
+        <button class="btn btn-ghost" type="submit">Consultar status no Mercado Pago</button>
+      </form>
+      {% endif %}
+    {% elif order.status == 'paid' %}
+      <div class="thumb">✅</div>
+      <p>Olá, {{ order.customer_name }}. Seu pedido foi pago{% if order.paid_at %} em {{ order.paid_at }}{% endif %}.</p>
+    {% else %}
+      <p class="muted">Este PIX expirou ou foi recusado. Monte o carrinho novamente.</p>
+    {% endif %}
+    <hr style="border-color:var(--stroke)">
+    {% for item in order.items.all %}
+      <p>{{ item.quantity }}× {{ item.name }} — R$ {{ item.unit_price }}</p>
+    {% endfor %}
+  </div>
+</section>
+{% if order.status == 'pending' %}
+<script>
+  const url = "{% url 'store:pedido_status' order.public_id %}";
+  const tick = async () => {
+    try {
+      const r = await fetch(url, {headers: {'Accept': 'application/json'}});
+      const data = await r.json();
+      if (data.status === 'paid' || data.status === 'cancelled') {
+        window.location.reload();
+      }
+    } catch (e) {}
+  };
+  setInterval(tick, 4000);
+  setTimeout(tick, 1500);
+</script>
+{% endif %}
+{% endblock %}

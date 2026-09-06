@@ -1,0 +1,102 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  {% include 'includes/meta_mobile.html' %}
+  <title>{% block title %}TERRA NOVA Veterinária{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <link rel="stylesheet" href="{% static 'css/whatsapp.css' %}">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="{% url 'store:inicio' %}">
+        <img src="{% static 'img/logo.svg' %}" alt="Logo VT">
+        <div>
+          <span>TERRA NOVA</span>
+          <small>VETERINÁRIA · VT</small>
+        </div>
+      </a>
+      <form class="search" action="{% url 'store:produtos' %}" method="get" autocomplete="off">
+        <span class="ico">⌕</span>
+        <input id="q" name="q" value="{{ q|default:'' }}" placeholder="Pesquisar produtos...">
+        <div class="search-pop" id="search-pop"></div>
+      </form>
+      <nav class="nav-links">
+        <a href="{% url 'store:inicio' %}">Início</a>
+        <a href="{% url 'store:produtos' %}">Produtos</a>
+        <a href="{% url 'store:relevantes' %}">Mais relevantes</a>
+        <a href="{% url 'store:sobre' %}">Sobre</a>
+        <a href="{% url 'store:garantia' %}">Garantia</a>
+        <a href="{% url 'store:app' %}">Baixar app</a>
+        <a href="{% url 'store:baixar_zip' %}">ZIP</a>
+        {% if user.is_staff %}
+          <a href="{% url 'store:painel' %}">Painel</a>
+        {% else %}
+          <a href="{% url 'accounts:login' %}">Admin</a>
+        {% endif %}
+      </nav>
+      <a class="cart-pill" href="{% url 'store:carrinho' %}">Carrinho · {{ cart_count }}</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% if messages %}
+      <ul class="messages">
+        {% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <div class="wrap foot-grid">
+      <div>
+        <div class="brand">
+          <img src="{% static 'img/logo.svg' %}" alt="" width="40">
+          <div><strong>TERRA NOVA</strong><small style="display:block;color:var(--cana)">Clínica e farmácia veterinária</small></div>
+        </div>
+        <p class="muted">Cuidado de verdade para quem não fala, mas sente. Produtos, consultas e entrega com PIX.</p>
+      </div>
+      <div>
+        <strong>Páginas</strong>
+        <p><a href="{% url 'store:sobre' %}">Sobre</a><br>
+           <a href="{% url 'store:garantia' %}">Garantia</a><br>
+           <a href="{% url 'store:app' %}">Baixar app</a><br>
+           <a href="{% url 'store:baixar_zip' %}">Baixar ZIP no celular</a></p>
+      </div>
+      <div>
+        <strong>PIX</strong>
+        <p class="muted">{{ clinic_pix_key }}<br>Atendimento 8h–20h</p>
+      </div>
+    </div>
+  </footer>
+
+  {% include 'includes/whatsapp.html' %}
+
+  <script>
+    const input = document.getElementById('q');
+    const pop = document.getElementById('search-pop');
+    if (input) {
+      let t;
+      input.addEventListener('input', () => {
+        clearTimeout(t);
+        t = setTimeout(async () => {
+          const q = input.value.trim();
+          if (q.length < 2) { pop.style.display = 'none'; return; }
+          const res = await fetch(`{% url 'store:buscar_json' %}?q=` + encodeURIComponent(q));
+          const data = await res.json();
+          pop.innerHTML = data.results.map(r =>
+            `<a href="/produto/${r.slug}/"><span>${r.emoji} ${r.name}</span><span>R$ ${r.price}</span></a>`
+          ).join('') || '<a>Nenhum produto</a>';
+          pop.style.display = 'block';
+        }, 180);
+      });
+      document.addEventListener('click', e => { if (!e.target.closest('.search')) pop.style.display = 'none'; });
+    }
+  </script>
+</body>
+</html>
+

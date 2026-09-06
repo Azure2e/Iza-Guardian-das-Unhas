@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Baixar app · TERRA NOVA{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <div class="kicker">APLICATIVO</div>
+    <h1>App TERRA NOVA no celular.</h1>
+    <p class="lead">PWA com navegação de app, busca, carrinho protegido e PIX. Instale na tela inicial — sem loja de aplicativos.</p>
+    <div class="cta-row">
+      <a class="btn btn-cana" href="{% url 'store:app_inicio' %}">Abrir o app agora</a>
+      <button class="btn btn-ghost" id="web-install" type="button">Instalar no aparelho</button>
+      <a class="btn btn-cana" href="{% url 'store:baixar_zip' %}">Baixar no celular (ZIP)</a>
+    </div>
+    <p class="muted" style="margin-top:16px">
+      Android / Chrome: Instalar app.<br>
+      iPhone / Safari: Compartilhar → Adicionar à Tela de Início.
+    </p>
+  </div>
+  <div class="hero-card" style="text-align:center">
+    <img src="{% static 'img/icon-192.png' %}" alt="Ícone VT" style="width:120px;margin:0 auto 12px;border-radius:28px">
+    <p class="vt" style="font-size:48px">VT</p>
+    <p class="muted">Ícone verde cana · modo tela cheia · funciona offline nos arquivos do app.</p>
+  </div>
+</section>
+<div class="grid-3" style="margin-bottom:40px">
+  <article class="card"><h3>Início e busca</h3><p class="muted">Barra inferior, pesquisa e destaques da farmácia.</p></article>
+  <article class="card"><h3>Carrinho + PIX</h3><p class="muted">Mesmo checkout seguro do site, pensado para o polegar.</p></article>
+  <article class="card"><h3>Instalável</h3><p class="muted">Abre como aplicativo, sem navegador aparente.</p></article>
+</div>
+<script>
+  let deferred;
+  const btn = document.getElementById('web-install');
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; });
+  btn.addEventListener('click', async () => {
+    if (deferred) { deferred.prompt(); return; }
+    window.location.href = "{% url 'store:app_inicio' %}";
+  });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('{% url 'store:app_sw' %}');
+</script>
+{% endblock %}

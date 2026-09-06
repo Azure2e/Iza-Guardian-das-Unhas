@@ -1,0 +1,79 @@
+{% extends 'mobile/base.html' %}
+{% block title %}Compatibilidade iOS · TERRA NOVA{% endblock %}
+{% block content %}
+<div class="kicker">DIAGNÓSTICO</div>
+<h1 style="font-family:var(--serif);font-size:26px">Safari / iOS</h1>
+<p class="muted" id="ua-line"></p>
+<div class="card" id="compat-list" style="margin-top:12px"></div>
+<div class="card" style="margin-top:12px">
+  <h3>Teste de cache</h3>
+  <p class="muted" id="cache-log">Rodando…</p>
+  <button class="btn btn-ghost" type="button" id="cache-clear">Limpar caches TN</button>
+</div>
+<div class="card" style="margin-top:12px">
+  <h3>O que o iOS aceita</h3>
+  <p class="muted">
+    Service Worker e Cache API: sim (11.3+).<br>
+    Push: só iOS 16.4+ e app na Tela de Início, instalado pelo Safari.<br>
+    beforeinstallprompt: não existe — use Compartilhar → Adicionar à Tela de Início.<br>
+    Background Sync: não.<br>
+    Ícone: apple-touch-icon (o manifest é ignorado no ícone).<br>
+    Storage em aba do Safari pode zerar em ~7 dias; o atalho da Home dura mais.
+  </p>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    const c = window.TNCompat || { features: () => ({}), isIOS: false, isSafari: false, standalone: false };
+    document.getElementById('ua-line').textContent = navigator.userAgent;
+    const f = c.features();
+    const rows = [
+      ['iPhone / iPad', c.isIOS ? 'sim' : 'não'],
+      ['Safari (WebKit puro)', c.isSafari ? 'sim' : 'não — no iOS todo browser é WebKit'],
+      ['Standalone (Tela de Início)', c.standalone ? 'sim' : 'não'],
+      ['Service Worker', f.serviceWorker],
+      ['Cache API', f.cacheAPI],
+      ['PushManager', f.pushManager],
+      ['Notification', f.notification],
+      ['Badge na icon', f.badge],
+      ['Background Sync', f.backgroundSync],
+      ['beforeinstallprompt', f.beforeinstallprompt],
+      ['Persistent Storage', f.persistentStorage]
+    ];
+    document.getElementById('compat-list').innerHTML = rows.map(([k, v]) => {
+      const ok = v === true || v === 'sim';
+      const warn = v === false || v === 'não';
+      const label = typeof v === 'boolean' ? (v ? 'ok' : 'ausente') : v;
+      return `<p>${k} <strong style="float:right;color:${ok ? 'var(--cana-2)' : warn ? '#E26A5A' : 'var(--gold)'}">${label}</strong></p>`;
+    }).join('');
+
+    const log = document.getElementById('cache-log');
+    try {
+      if (!('caches' in window)) throw new Error('Cache API ausente');
+      const name = 'tn-compat-probe';
+      const cache = await caches.open(name);
+      const probe = new Response('ok', { headers: { 'Content-Type': 'text/plain', 'X-TN-Cached-At': String(Date.now()) } });
+      await cache.put('/m/compat-probe', probe);
+      const hit = await cache.match('/m/compat-probe', { ignoreSearch: true });
+      const header = hit && hit.headers.get('X-TN-Cached-At');
+      await caches.delete(name);
+      let quota = '';
+      if (navigator.storage && navigator.storage.estimate) {
+        const est = await navigator.storage.estimate();
+        quota = ` Quota: ${Math.round((est.usage || 0) / 1024)} KB de ${Math.round((est.quota || 0) / 1048576)} MB.`;
+      }
+      const regs = await navigator.serviceWorker.getRegistrations();
+      log.textContent = `Cache put/match: ok. Header custom: ${header ? 'ok' : 'perdido'}. SW regs: ${regs.length}.${quota}`;
+    } catch (err) {
+      log.textContent = 'Falha no teste de cache: ' + err.message;
+    }
+
+    document.getElementById('cache-clear').addEventListener('click', async () => {
+      const reg = await navigator.serviceWorker.getRegistration('/m/');
+      if (reg && reg.active) reg.active.postMessage({ type: 'TN_CLEAR_CACHES' });
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k.startsWith('tn-')).map((k) => caches.delete(k)));
+      log.textContent = 'Caches TERRA NOVA limpos.';
+    });
+  });
+</script>
+{% endblock %}

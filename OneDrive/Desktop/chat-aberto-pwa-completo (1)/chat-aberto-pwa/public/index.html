@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#00a884" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Chat aberto com mensagens e vídeo, estilo Messenger" />
+  <title>Chat Aberto</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="gate" class="gate">
+    <div class="gate-card">
+      <img src="/icons/icon-192.png" alt="" class="gate-logo" />
+      <h1>Chat Aberto</h1>
+      <p>Entre na sala pública. Envie mensagens e vídeos em tempo real, como no Messenger.</p>
+      <form id="join-form">
+        <label for="name-input">Seu nome</label>
+        <input id="name-input" maxlength="24" autocomplete="nickname" placeholder="Como você quer aparecer" required />
+        <button type="submit">Entrar no chat</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <div id="offline-bar" class="offline-bar hidden">Sem internet — as mensagens ficam salvas e sobem sozinhas</div>
+    <header class="topbar">
+      <div class="topbar-avatar" id="room-avatar">CA</div>
+      <div class="topbar-meta">
+        <strong id="room-title">Chat Aberto</strong>
+        <span id="online-label">conectando…</span>
+      </div>
+      <button id="notify-btn" class="ghost-btn" type="button">Ativar avisos</button>
+      <button id="install-btn" class="ghost-btn hidden" type="button">Instalar</button>
+      <button id="admin-btn" class="icon-btn" type="button" title="Administração">🛡️<span id="alert-badge" class="alert-badge hidden">0</span></button>
+      <button id="id-btn" class="icon-btn" type="button" title="Identidade E2E">🔑</button>
+      <button id="groups-btn" class="icon-btn" type="button" title="Grupos">💬</button>
+      <button id="people-btn" class="icon-btn" type="button" title="Quem está online">👥</button>
+    </header>
+
+    <aside id="identity" class="people hidden">
+      <div class="people-head">
+        <strong>Identidade E2E</strong>
+        <button id="id-close" class="icon-btn" type="button">✕</button>
+      </div>
+      <div class="id-box">
+        <p class="admin-hint">Sua chave privada fica só neste aparelho (IndexedDB). Compare o código com a outra pessoa por um canal seguro.</p>
+        <label>Sua impressão digital</label>
+        <pre id="my-fp" class="fp-code">gerando…</pre>
+        <button id="copy-fp" class="ghost-btn push-btn" type="button">Copiar meu código</button>
+      </div>
+      <ul id="id-list"></ul>
+    </aside>
+
+    <aside id="groups" class="people hidden">
+      <div class="people-head">
+        <strong>Grupos</strong>
+        <button id="groups-close" class="icon-btn" type="button">✕</button>
+      </div>
+      <form id="group-form" class="admin-auth">
+        <label for="group-name">Novo grupo</label>
+        <input id="group-name" maxlength="40" placeholder="Nome do grupo" />
+        <button type="submit">Criar grupo privado</button>
+      </form>
+      <form id="member-form" class="admin-auth">
+        <label for="member-name">Adicionar membro no grupo atual</label>
+        <input id="member-name" maxlength="24" placeholder="Nome da pessoa" />
+        <button type="submit">Adicionar</button>
+      </form>
+      <p class="admin-hint" id="e2e-hint">🔒 Mensagens com criptografia ponta a ponta. O servidor não lê o texto.</p>
+      <ul id="groups-list"></ul>
+    </aside>
+
+    <aside id="people" class="people hidden">
+      <div class="people-head">
+        <strong>Disponibilidade</strong>
+        <button id="people-close" class="icon-btn" type="button">✕</button>
+      </div>
+      <div class="status-pick" id="status-pick">
+        <button type="button" data-status="available" class="on">Disponível</button>
+        <button type="button" data-status="away">Ausente</button>
+        <button type="button" data-status="busy">Ocupado</button>
+      </div>
+      <ul id="people-list"></ul>
+    </aside>
+
+    <aside id="admin" class="people admin-panel hidden">
+      <div class="people-head">
+        <strong>Administração</strong>
+        <button id="admin-close" class="icon-btn" type="button">✕</button>
+      </div>
+      <form id="admin-auth" class="admin-auth">
+        <label for="admin-code">Código de administrador</label>
+        <input id="admin-code" type="password" placeholder="Digite o código" autocomplete="off" />
+        <button type="submit">Entrar como admin</button>
+      </form>
+      <div id="admin-tools" class="admin-tools hidden">
+        <p class="admin-hint">Silenciar impede enviar. Bloquear esconde e impede enviar. Banir tira da sala.</p>
+        <button id="push-btn" class="ghost-btn push-btn" type="button">Ativar notificações push</button>
+        <ul id="admin-list"></ul>
+        <div class="admin-logs">
+          <div class="logs-head">
+            <strong>Logs de moderação</strong>
+            <button id="logs-refresh" class="ghost-btn" type="button">Atualizar</button>
+          </div>
+          <ul id="admin-log-list"></ul>
+        </div>
+      </div>
+    </aside>
+
+    <div id="alert-stack" class="alert-stack" aria-live="assertive"></div>
+    <main id="thread" class="thread" aria-live="polite"></main>
+
+    <div id="typing" class="typing hidden"></div>
+
+    <div id="preview" class="preview hidden">
+      <div class="preview-card">
+        <button id="preview-close" class="preview-x" type="button">✕</button>
+        <video id="preview-video" controls playsinline></video>
+        <img id="preview-image" alt="Prévia" />
+        <div class="preview-actions">
+          <input id="caption" maxlength="2000" placeholder="Escreva uma mensagem…" />
+          <button id="preview-send" type="button">Enviar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="reply-bar" class="reply-bar hidden">
+      <div>
+        <strong id="reply-name"></strong>
+        <span id="reply-text"></span>
+      </div>
+      <button id="reply-cancel" type="button">✕</button>
+    </div>
+
+    <form id="composer" class="composer">
+      <label class="attach" title="Enviar vídeo ou imagem">
+        +
+        <input id="file-input" type="file" accept="video/*,image/*" hidden />
+      </label>
+      <textarea id="text-input" rows="1" maxlength="2000" placeholder="Mensagem"></textarea>
+      <button id="emoji-btn" class="icon-btn" type="button" title="Emoji">😊</button>
+      <button id="send-btn" type="submit" title="Enviar">➤</button>
+    </form>
+    <div id="emoji-panel" class="emoji-panel hidden"></div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

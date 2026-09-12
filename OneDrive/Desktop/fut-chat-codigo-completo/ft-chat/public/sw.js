@@ -1,4 +1,4 @@
-const CACHE = "ft-chat-v16";
+const CACHE = "ft-chat-v17";
 const PRECACHE = [
   "/",
   "/index.html",

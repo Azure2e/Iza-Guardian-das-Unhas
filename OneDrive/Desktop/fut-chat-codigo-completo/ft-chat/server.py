@@ -7,6 +7,9 @@ import hashlib
 import json
 import os
 import secrets
+import socket
+import urllib.request
+import gzip
 import subprocess
 import threading
 import time
@@ -16,7 +19,7 @@ import struct
 from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, quote_plus, unquote, urlencode, urlparse
 
 try:
     import jwt
@@ -45,6 +48,10 @@ JWT_ROTATE_SECONDS = int(os.environ.get("JWT_ROTATE_SECONDS", str(7 * 24 * 3600)
 JWT_SECRET_FILE = DATA_DIR / "jwt-secret.json"
 JWT_KEYS_FILE = DATA_DIR / "jwt-keys.json"
 REFRESH_FILE = DATA_DIR / "refresh.json"
+GOOGLE_CLIENT_ID = (os.environ.get("GOOGLE_CLIENT_ID") or "").strip()
+GOOGLE_CLIENT_SECRET = (os.environ.get("GOOGLE_CLIENT_SECRET") or "").strip()
+GOOGLE_REDIRECT_URI = (os.environ.get("GOOGLE_REDIRECT_URI") or "").strip()
+ALLOWED_ORIGINS = [o.strip() for o in (os.environ.get("ALLOWED_ORIGINS") or "").split(",") if o.strip()]
 MAX_MOD_LOGS = 500
 PORT = int(os.environ.get("PORT", "3000"))
 MAX_VIDEO_BYTES = 80 * 1024 * 1024
@@ -54,6 +61,11 @@ STARTED_AT = time.time()
 
 UPLOADS.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    import db as store
+    store.connect(DATA_DIR)
+except Exception as exc:
+    print("sqlite off:", exc)
 
 
 def _b64u_int(value: int, size: int) -> str:
@@ -256,6 +268,23 @@ def verify_jwt(token: str, expected_typ: str = "access"):
     return name
 
 
+def access_claims(token: str):
+    name = verify_jwt(token, "access")
+    if not name or jwt is None:
+        return None
+    try:
+        payload = jwt.decode(
+            token,
+            options={"verify_signature": False, "verify_exp": False, "verify_aud": False, "verify_iss": False},
+        )
+        jti = str((payload or {}).get("jti") or "")
+    except Exception:
+        return None
+    if not jti:
+        return None
+    return {"name": name, "jti": jti}
+
+
 def connect_redis():
     url = (os.environ.get("REDIS_URL") or os.environ.get("REDIS_TLS_URL") or "").strip()
     if not url:
@@ -428,6 +457,64 @@ class RateLimiter:
 
 LIMITER = RateLimiter()
 
+SESSION_SALT = b"ft-chat-session"
+SESSION_INFO = b"ws-aesgcm"
+SESSION_CLEAR_OPS = {"hello", "session_ok", "session_open", "ping"}
+
+
+def _b64url(data: bytes) -> str:
+    return base64.b64encode(data).decode("ascii")
+
+
+def _b64url_decode(text: str) -> bytes:
+    return base64.b64decode(text or "")
+
+
+def new_session_keypair():
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives import serialization
+    priv = ec.generate_private_key(ec.SECP256R1())
+    pub = priv.public_key().public_bytes(
+        serialization.Encoding.X962,
+        serialization.PublicFormat.UncompressedPoint,
+    )
+    return priv, _b64url(pub)
+
+
+def derive_session_key(priv, their_b64: str) -> bytes:
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    raw = _b64url_decode(their_b64)
+    their = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), raw)
+    shared = priv.exchange(ec.ECDH(), their)
+    return HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=SESSION_SALT,
+        info=SESSION_INFO,
+    ).derive(shared)
+
+
+def session_aad(jti: str) -> bytes:
+    return f"ft-session:{jti}".encode("utf-8")
+
+
+def seal_session(key: bytes, payload: dict, aad: bytes | None = None) -> dict:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    iv = secrets.token_bytes(12)
+    ct = AESGCM(key).encrypt(iv, json.dumps(payload, ensure_ascii=False).encode("utf-8"), aad)
+    return {"sess": True, "iv": _b64url(iv), "ct": _b64url(ct)}
+
+
+def open_session(key: bytes, blob: dict, aad: bytes | None = None):
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    pt = AESGCM(key).decrypt(_b64url_decode(blob.get("iv") or ""), _b64url_decode(blob.get("ct") or ""), aad)
+    data = json.loads(pt.decode("utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("sessão inválida")
+    return data
+
 MIME = {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
@@ -483,6 +570,13 @@ def atomic_write(path: Path, payload) -> None:
 
 
 def load_messages() -> list:
+    try:
+        import db as store
+        rows = store.load_messages()
+        if rows:
+            return rows
+    except Exception:
+        pass
     data = _read_json_list(MESSAGES_FILE)
     if data is not None:
         return data
@@ -492,12 +586,15 @@ def load_messages() -> list:
 
 def save_messages(messages: list) -> list:
     trimmed = messages[-MAX_HISTORY:]
-    if MESSAGES_FILE.exists():
-        try:
-            os.replace(MESSAGES_FILE, MESSAGES_BAK)
-        except Exception:
-            pass
-    atomic_write(MESSAGES_FILE, trimmed)
+    try:
+        import db as store
+        store.replace_messages(trimmed)
+    except Exception as exc:
+        print("sqlite save:", exc)
+    try:
+        atomic_write(MESSAGES_FILE, trimmed)
+    except Exception:
+        pass
     return trimmed
 
 
@@ -545,6 +642,11 @@ class Hub:
             atomic_write(GROUPS_FILE, payload)
         except Exception as exc:
             print("groups save:", exc)
+        try:
+            import db as store
+            store.save_groups(payload.get("groups") or [])
+        except Exception as exc:
+            print("sqlite groups:", exc)
 
     def group_by_id(self, gid: str | None):
         gid = gid or DEFAULT_GROUP_ID
@@ -616,6 +718,48 @@ class Hub:
                     break
         self.persist_groups()
         return {"ok": True, "group": g}
+
+    def leave_group(self, actor: str, gid: str):
+        if not gid or gid == DEFAULT_GROUP_ID:
+            return {"ok": False, "error": "Não dá para sair do chat aberto."}
+        g = self.group_by_id(gid)
+        if not g:
+            return {"ok": False, "error": "Grupo não existe."}
+        with self.lock:
+            for row in self.groups:
+                if row.get("id") != gid:
+                    continue
+                row["members"] = [m for m in (row.get("members") or []) if m.lower() != actor.lower()]
+                row["admins"] = [m for m in (row.get("admins") or []) if m.lower() != actor.lower()]
+                g = dict(row)
+                break
+        self.persist_groups()
+        return {"ok": True, "group": g, "left": actor}
+
+    def open_dm(self, actor: str, target: str):
+        target = (target or "").strip()[:24]
+        actor = (actor or "").strip()[:24]
+        if not target or target.lower() == actor.lower():
+            return {"ok": False, "error": "Escolha outra pessoa."}
+        key = "|".join(sorted([actor.lower(), target.lower()]))
+        gid = "dm-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+        existing = self.group_by_id(gid)
+        if existing:
+            return {"ok": True, "group": existing}
+        group = {
+            "id": gid,
+            "name": target,
+            "kind": "dm",
+            "e2e": True,
+            "members": [actor, target],
+            "admins": [actor, target],
+            "createdAt": int(time.time() * 1000),
+        }
+        with self.lock:
+            self.groups.append(group)
+            self.wraps.setdefault(gid, {})
+        self.persist_groups()
+        return {"ok": True, "group": group}
 
     def set_pubkey(self, name: str, pubkey: str):
         if not name or not pubkey:
@@ -825,18 +969,21 @@ class Hub:
         if not self.can_access(viewer, gid):
             return []
         with self.lock:
-            rows = [
-                m for m in self.messages
-                if (m.get("groupId") or DEFAULT_GROUP_ID) == gid
-            ][-MAX_HISTORY:]
             blocked = set(self.blocked.keys())
             admin = bool(viewer) and viewer.lower() in self.admins
-        if admin:
-            return rows
-        return [
-            m for m in rows
-            if m.get("type") == "system" or (m.get("author") or "").lower() not in blocked
-        ]
+            rows = []
+            for msg in reversed(self.messages):
+                if (msg.get("groupId") or DEFAULT_GROUP_ID) != gid:
+                    continue
+                if not admin:
+                    author = (msg.get("author") or "").lower()
+                    if msg.get("type") != "system" and author in blocked:
+                        continue
+                rows.append(msg)
+                if len(rows) >= MAX_HISTORY:
+                    break
+        rows.reverse()
+        return rows
 
     def moderate(self, actor: str, target: str, action: str, minutes: int = 0, reason: str = ""):
         target = (target or "").strip()
@@ -900,6 +1047,91 @@ class Hub:
                     found.append((cid, c))
         return found
 
+    def security_sessions(self):
+        now = time.time()
+        rows = []
+        with self.lock:
+            for cid, c in self.clients.items():
+                if not c.get("name"):
+                    continue
+                loc = c.get("location")
+                if loc and now > float(loc.get("until") or 0):
+                    c["location"] = None
+                    loc = None
+                rows.append({
+                    "sid": cid,
+                    "name": c.get("name"),
+                    "status": c.get("status") or "available",
+                    "ip": c.get("ip") or "",
+                    "ua": c.get("ua") or "",
+                    "joinedAt": c.get("joinedAt"),
+                    "lastBeat": int((c.get("lastBeat") or now) * 1000),
+                    "sharing": bool(loc),
+                    "location": {
+                        "lat": loc.get("lat"),
+                        "lng": loc.get("lng"),
+                        "accuracy": loc.get("accuracy"),
+                        "at": loc.get("at"),
+                    } if loc else None,
+                })
+        rows.sort(key=lambda r: (str(r.get("name") or "").lower(), r.get("sid")))
+        return rows
+
+    def set_location(self, cid: str, lat, lng, accuracy=None, minutes=15):
+        try:
+            lat_f = float(lat)
+            lng_f = float(lng)
+        except Exception:
+            return None
+        if not (-90 <= lat_f <= 90 and -180 <= lng_f <= 180):
+            return None
+        acc = None
+        try:
+            if accuracy is not None:
+                acc = max(0, min(float(accuracy), 5000))
+        except Exception:
+            acc = None
+        until = time.time() + max(1, min(int(minutes or 15), 60)) * 60
+        with self.lock:
+            user = self.clients.get(cid)
+            if not user or not user.get("name"):
+                return None
+            user["location"] = {
+                "lat": round(lat_f, 5),
+                "lng": round(lng_f, 5),
+                "accuracy": acc,
+                "at": int(time.time() * 1000),
+                "until": until,
+            }
+            name = user["name"]
+        return {"name": name, "until": int(until * 1000)}
+
+    def clear_location(self, cid: str):
+        with self.lock:
+            user = self.clients.get(cid)
+            if user:
+                user["location"] = None
+                return user.get("name")
+        return None
+
+    def kick_sid(self, sid: str, reason: str) -> bool:
+        with self.lock:
+            client = self.clients.get(sid)
+        if not client:
+            return False
+        handler = client.get("handler")
+        try:
+            if handler:
+                handler.ws_send_text(json.dumps({
+                    "op": "kicked",
+                    "reason": reason,
+                }, ensure_ascii=False))
+                handler._ws_open = False
+        except Exception:
+            pass
+        self.unregister(sid)
+        return True
+
     def kick(self, name: str, reason: str):
         for cid, client in self.sockets_of(name):
             handler = client.get("handler")
@@ -955,13 +1187,43 @@ class Hub:
         rows.sort(key=lambda x: (x["status"] == "offline", x["name"].lower()))
         return rows
 
-    def persist_presence(self):
-        with self.lock:
-            snap = dict(self.presence)
-        try:
-            atomic_write(PRESENCE_FILE, snap)
-        except Exception as exc:
-            print("presence save:", exc)
+    def persist_presence(self, immediate=False):
+        def flush():
+            with self.lock:
+                snap = dict(self.presence)
+            try:
+                atomic_write(PRESENCE_FILE, snap)
+            except Exception as exc:
+                print("presence save:", exc)
+        if immediate:
+            flush()
+            return
+        timer = getattr(self, "_presence_timer", None)
+        if timer:
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+        timer = threading.Timer(1.2, flush)
+        timer.daemon = True
+        self._presence_timer = timer
+        timer.start()
+
+    def schedule_save(self):
+        def flush():
+            with self.lock:
+                trimmed = save_messages(self.messages)
+                self.messages = trimmed
+        timer = getattr(self, "_msg_timer", None)
+        if timer:
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+        timer = threading.Timer(0.25, flush)
+        timer.daemon = True
+        self._msg_timer = timer
+        timer.start()
 
     def touch(self, name, color, status="available"):
         if not name:
@@ -994,12 +1256,26 @@ class Hub:
 
     def register(self, cid, handler):
         with self.lock:
+            ip = ""
+            ua = ""
+            try:
+                ip = handler.client_ip()
+            except Exception:
+                ip = ""
+            try:
+                ua = str(handler.headers.get("User-Agent") or "")[:180]
+            except Exception:
+                ua = ""
             self.clients[cid] = {
                 "handler": handler,
                 "name": None,
                 "color": None,
                 "status": "available",
                 "lastBeat": time.time(),
+                "ip": ip,
+                "ua": ua,
+                "joinedAt": int(time.time() * 1000),
+                "location": None,
             }
 
     def unregister(self, cid):
@@ -1076,8 +1352,8 @@ class Hub:
             msg["deliveredTo"] = others
             msg["readBy"] = []
             msg["status"] = "delivered" if others else "sent"
-            self.messages = save_messages(self.messages)
-            return msg
+        self.schedule_save()
+        return msg
 
     def receipts(self, viewer: str, kind: str, ids: list):
         if not viewer or kind not in {"delivered", "read"}:
@@ -1133,6 +1409,30 @@ class Hub:
             self.messages = save_messages(self.messages)
             return msg
 
+    def edit_message(self, actor: str, mid: str, text: str, e2e=False, iv=None, ct=None):
+        text = str(text or "").strip()[:MAX_TEXT]
+        with self.lock:
+            msg = next((m for m in self.messages if m.get("id") == mid or m.get("clientId") == mid), None)
+            if not msg:
+                return None
+            if (msg.get("author") or "").lower() != actor.lower():
+                return False
+            if msg.get("deleted"):
+                return False
+            if e2e:
+                msg["e2e"] = True
+                msg["text"] = ""
+                msg["iv"] = str(iv or "")[:64]
+                msg["ct"] = str(ct or "")[:8000]
+            else:
+                if not text:
+                    return False
+                msg["text"] = text
+            msg["edited"] = True
+            msg["editedAt"] = int(time.time() * 1000)
+            self.messages = save_messages(self.messages)
+            return msg
+
     def clients_list(self):
         with self.lock:
             return list(self.clients.values())
@@ -1176,12 +1476,16 @@ def broadcast_group(group_id: str | None, payload: dict, exclude_id: str | None 
 
 def broadcast(payload: dict, exclude_id: str | None = None):
     raw = json.dumps(payload, ensure_ascii=False)
+    with HUB.lock:
+        targets = [
+            (cid, c.get("handler"))
+            for cid, c in HUB.clients.items()
+            if c.get("handler") and cid != exclude_id
+        ]
     dead = []
-    for cid, client in list(HUB.clients.items()):
-        if exclude_id and cid == exclude_id:
-            continue
+    for cid, handler in targets:
         try:
-            client["handler"].ws_send_text(raw)
+            handler.ws_send_text(raw)
         except Exception:
             dead.append(cid)
     for cid in dead:
@@ -1291,6 +1595,10 @@ def guess_ext(filename: str, content_type: str) -> str:
     mapping = {
         "video/mp4": ".mp4",
         "video/webm": ".webm",
+        "audio/webm": ".webm",
+        "audio/ogg": ".ogg",
+        "audio/mpeg": ".mp3",
+        "audio/mp4": ".m4a",
         "video/quicktime": ".mov",
         "image/jpeg": ".jpg",
         "image/png": ".png",
@@ -1385,6 +1693,28 @@ class ChatHandler(BaseHTTPRequestHandler):
             return forwarded.split(",")[0].strip()[:64]
         return (self.client_address[0] if self.client_address else "0.0.0.0")[:64]
 
+    def request_origin(self) -> str:
+        return (self.headers.get("Origin") or self.headers.get("Referer") or "").rstrip("/")
+
+    def origin_ok(self) -> bool:
+        if not ALLOWED_ORIGINS:
+            return True
+        origin = self.request_origin()
+        host = self.headers.get("Host") or ""
+        if origin:
+            return any(origin.startswith(o) for o in ALLOWED_ORIGINS)
+        return True
+
+    def require_api_user(self):
+        if not self.origin_ok():
+            self.send_json(403, {"error": "Origem não autorizada."})
+            return None
+        name = verify_jwt(self.bearer_token())
+        if not name:
+            self.send_json(401, {"error": "API exige JWT."})
+            return None
+        return name
+
     def bearer_token(self, body=None) -> str:
         header = self.headers.get("Authorization") or ""
         if header.lower().startswith("bearer "):
@@ -1393,17 +1723,39 @@ class ChatHandler(BaseHTTPRequestHandler):
             return str(body.get("token") or "")
         return ""
 
+    def google_redirect(self) -> str:
+        host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host") or f"localhost:{PORT}"
+        proto = self.headers.get("X-Forwarded-Proto") or ("http" if "localhost" in host or "127.0.0.1" in host else "https")
+        return f"{proto}://{host}/api/auth/google/callback"
+
     def rate(self, bucket: str, limit: int, window: int) -> bool:
         return LIMITER.allow(f"{bucket}:{self.client_ip()}", limit, window)
 
     def send_bytes(self, status: int, body: bytes, content_type: str, extra=None):
+        extra = extra or {}
+        enc = (self.headers.get("Accept-Encoding") or "").lower()
+        if "gzip" in enc and len(body) > 512 and content_type.split(";")[0] in {
+            "text/html", "text/css", "text/javascript", "application/json", "application/javascript",
+        }:
+            body = gzip.compress(body, compresslevel=5)
+            extra = {**extra, "Content-Encoding": "gzip", "Vary": "Accept-Encoding"}
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-cache")
-        if extra:
-            for k, v in extra.items():
-                self.send_header(k, v)
+        if "Cache-Control" not in extra:
+            self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "same-origin")
+        self.send_header("Permissions-Policy", "camera=(), geolocation=(self), microphone=(self)")
+        origin = self.headers.get("Origin")
+        if origin and self.origin_ok():
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        for k, v in extra.items():
+            self.send_header(k, v)
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
@@ -1430,15 +1782,88 @@ class ChatHandler(BaseHTTPRequestHandler):
                 {"Cache-Control": "public, max-age=60"},
             )
 
+        if path == "/api/auth/google/start":
+            if not GOOGLE_CLIENT_ID:
+                return self.send_json(400, {"error": "Defina GOOGLE_CLIENT_ID."})
+            redirect = GOOGLE_REDIRECT_URI or self.google_redirect()
+            params = {
+                "client_id": GOOGLE_CLIENT_ID,
+                "redirect_uri": redirect,
+                "response_type": "code",
+                "scope": "openid email profile",
+                "access_type": "online",
+                "prompt": "select_account",
+            }
+            loc = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
+            self.send_response(302)
+            self.send_header("Location", loc)
+            self.end_headers()
+            return
+
+        if path == "/api/auth/google/callback":
+            qs = parse_qs(parsed.query)
+            code = (qs.get("code") or [""])[0]
+            err = (qs.get("error") or [""])[0]
+            if err or not code:
+                return self.send_json(401, {"error": err or "OAuth cancelado."})
+            if not GOOGLE_CLIENT_SECRET:
+                return self.send_json(500, {"error": "Defina GOOGLE_CLIENT_SECRET."})
+            redirect = GOOGLE_REDIRECT_URI or self.google_redirect()
+            body = urlencode({
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": redirect,
+                "grant_type": "authorization_code",
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://oauth2.googleapis.com/token",
+                data=body,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    tok = json.loads(resp.read().decode("utf-8"))
+            except Exception as exc:
+                return self.send_json(401, {"error": f"Troca de código falhou: {exc}"})
+            id_token = str(tok.get("id_token") or "")
+            if not id_token:
+                return self.send_json(401, {"error": "Google não devolveu id_token."})
+            try:
+                with urllib.request.urlopen(
+                    "https://oauth2.googleapis.com/tokeninfo?id_token=" + id_token,
+                    timeout=8,
+                ) as resp:
+                    info = json.loads(resp.read().decode("utf-8"))
+            except Exception:
+                return self.send_json(401, {"error": "id_token inválido."})
+            name = str(info.get("given_name") or info.get("name") or info.get("email") or "Google")[:24]
+            tokens = issue_tokens(name)
+            loc = "/#gtok={}&gref={}&gname={}".format(
+                quote_plus(tokens["accessToken"]),
+                quote_plus(tokens["refreshToken"]),
+                quote_plus(name),
+            )
+            self.send_response(302)
+            self.send_header("Location", loc)
+            self.end_headers()
+            return
+
+        if path == "/api/config":
+            return self.send_json(200, {
+                "googleClientId": GOOGLE_CLIENT_ID,
+                "google": bool(GOOGLE_CLIENT_ID),
+                "googleOAuth": bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
+            })
+
         if path == "/api/health" or path == "/api/ready":
             return self.send_json(200, {
                 "ok": True,
                 "ready": True,
                 "uptime": int(time.time() - STARTED_AT),
-                "messages": len(HUB.messages),
-                "online": len(HUB.online()),
-                "presence": len(HUB.presence_list()),
-                "refreshStore": REFRESH.backend(),
+                "online": len(HUB.clients),
+                "db": "sqlite",
             })
 
         if path == "/api/push/public-key":
@@ -1449,10 +1874,27 @@ class ChatHandler(BaseHTTPRequestHandler):
                 return self.send_json(500, {"error": str(exc)})
 
         if path == "/api/presence":
+            if not self.require_api_user():
+                return
             return self.send_json(200, HUB.presence_list())
 
         if path == "/api/messages":
-            return self.send_json(200, HUB.snapshot())
+            user = self.require_api_user()
+            if not user:
+                return
+            return self.send_json(200, HUB.snapshot(user))
+
+        if path == "/api/net":
+            user = self.require_api_user()
+            if not user:
+                return
+            return self.send_json(200, {
+                "ok": True,
+                "ip": self.client_ip(),
+                "online": len(HUB.clients),
+                "proto": self.headers.get("X-Forwarded-Proto") or "http",
+                "host": self.headers.get("Host"),
+            })
 
         if path == "/":
             path = "/index.html"
@@ -1466,14 +1908,100 @@ class ChatHandler(BaseHTTPRequestHandler):
 
         data = target.read_bytes()
         ctype = MIME.get(target.suffix.lower(), "application/octet-stream")
-        cache = "public, max-age=86400" if target.suffix.lower() in {".png", ".jpg", ".mp4", ".webm"} else "no-cache"
+        ext = target.suffix.lower()
+        if ext in {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm", ".woff2"}:
+            cache = "public, max-age=604800, immutable"
+        elif ext in {".css", ".js"}:
+            cache = "public, max-age=120"
+        else:
+            cache = "no-cache"
         self.send_bytes(200, data, ctype, {"Cache-Control": cache})
 
     def do_HEAD(self):
         self.do_GET()
 
+    def do_OPTIONS(self):
+        self.send_bytes(204, b"", "text/plain", {"Cache-Control": "no-store"})
+
     def do_POST(self):
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/api/") and parsed.path not in {
+            "/api/auth", "/api/auth/refresh", "/api/auth/logout", "/api/auth/google",
+        } and not self.origin_ok():
+            return self.send_json(403, {"error": "Origem não autorizada."})
+        if parsed.path == "/api/radio/lora":
+            if not self.rate("lora", 30, 60):
+                return self.send_json(429, {"error": "Muitos pacotes LoRa."})
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                packet = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                return self.send_json(400, {"error": "JSON inválido."})
+            packet = {
+                "name": str(packet.get("name") or "")[:24],
+                "text": str(packet.get("text") or "")[:200],
+                "groupId": str(packet.get("groupId") or DEFAULT_GROUP_ID)[:24],
+                "via": "lora",
+                "createdAt": int(packet.get("createdAt") or time.time() * 1000),
+            }
+            if not packet["text"]:
+                return self.send_json(400, {"error": "Texto vazio."})
+            outbox = DATA_DIR / "lora-outbox.json"
+            rows = []
+            try:
+                rows = json.loads(outbox.read_text("utf-8")) if outbox.exists() else []
+            except Exception:
+                rows = []
+            if not isinstance(rows, list):
+                rows = []
+            rows.append(packet)
+            atomic_write(outbox, rows[-200:])
+            forwarded = False
+            gw = (os.environ.get("LORA_GATEWAY_URL") or "").strip()
+            if gw:
+                try:
+                    req = urllib.request.Request(
+                        gw,
+                        data=json.dumps(packet).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=4) as resp:
+                        forwarded = resp.status < 400
+                except Exception as exc:
+                    print("lora gateway:", exc)
+            return self.send_json(200, {"ok": True, "queued": True, "forwarded": forwarded})
+        if parsed.path == "/api/auth/google":
+            if not self.rate("auth", 20, 60):
+                return self.send_json(429, {"error": "Muitas tentativas."})
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                return self.send_json(400, {"error": "JSON inválido."})
+            token = str(body.get("credential") or body.get("id_token") or "")
+            if not token or not GOOGLE_CLIENT_ID:
+                return self.send_json(400, {"error": "Google não configurado ou token ausente."})
+            try:
+                info_url = "https://oauth2.googleapis.com/tokeninfo?id_token=" + token
+                with urllib.request.urlopen(info_url, timeout=8) as resp:
+                    info = json.loads(resp.read().decode("utf-8"))
+            except Exception:
+                return self.send_json(401, {"error": "Token Google inválido."})
+            if str(info.get("aud") or "") != GOOGLE_CLIENT_ID:
+                return self.send_json(401, {"error": "Client ID do Google não confere."})
+            if str(info.get("iss") or "") not in {"accounts.google.com", "https://accounts.google.com"}:
+                return self.send_json(401, {"error": "Emissor Google inválido."})
+            name = str(info.get("given_name") or info.get("name") or info.get("email") or "Google")[:24]
+            if HUB.restriction(name) == "ban":
+                return self.send_json(403, {"error": "Usuário banido."})
+            try:
+                tokens = issue_tokens(name)
+            except Exception as exc:
+                return self.send_json(500, {"error": str(exc)})
+            return self.send_json(200, {"ok": True, "name": name, "email": info.get("email"), "picture": info.get("picture"), **tokens})
         if parsed.path == "/api/keys/rotate":
             if not self.rate("rotate", 6, 300):
                 return self.send_json(429, {"error": "Muitas rotações."})
@@ -1582,8 +2110,8 @@ class ChatHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             return self.send_json(400, {"error": str(exc)})
 
-        if not (file_mime.startswith("video/") or file_mime.startswith("image/")):
-            return self.send_json(400, {"error": "Envie apenas imagem ou vídeo."})
+        if not (file_mime.startswith("video/") or file_mime.startswith("image/") or file_mime.startswith("audio/")):
+            return self.send_json(400, {"error": "Envie imagem, vídeo ou áudio."})
 
         ext = guess_ext(filename, file_mime)
         stem = f"{int(time.time()*1000)}-{uuid.uuid4().hex[:10]}"
@@ -1595,7 +2123,7 @@ class ChatHandler(BaseHTTPRequestHandler):
             "name": filename,
             "mime": file_mime,
             "size": len(data),
-            "type": "video" if file_mime.startswith("video/") else "image",
+            "type": "video" if file_mime.startswith("video/") else ("radio" if file_mime.startswith("audio/") else "image"),
         }
         if payload["type"] == "video":
             payload.update(process_video(saved, stem))
@@ -1615,12 +2143,19 @@ class ChatHandler(BaseHTTPRequestHandler):
 
         cid = uuid.uuid4().hex
         self._ws_open = True
+        self.session_key = None
+        self.session_user = None
+        self.session_jti = None
+        self.session_aad = None
+        self.session_priv, self.session_pub = new_session_keypair()
         HUB.register(cid, self)
         try:
             self.ws_send_text(json.dumps({
                 "op": "hello",
                 "needAuth": True,
                 "auth": "jwt",
+                "session": "ecdh-aesgcm",
+                "serverPub": self.session_pub,
             }, ensure_ascii=False))
             self.ws_loop(cid)
         finally:
@@ -1647,12 +2182,52 @@ class ChatHandler(BaseHTTPRequestHandler):
             except json.JSONDecodeError:
                 continue
             try:
+                if payload.get("sess"):
+                    if not self.session_key or not self.session_aad:
+                        continue
+                    payload = open_session(self.session_key, payload, self.session_aad)
                 self.handle_event(cid, payload)
             except Exception as exc:
                 print("handle_event erro:", exc)
 
     def handle_event(self, cid: str, payload: dict):
         op = payload.get("op")
+        if op == "session_open":
+            claims = access_claims(str(payload.get("token") or ""))
+            if not claims:
+                self.ws_send_text(json.dumps({
+                    "op": "need_auth",
+                    "text": "Sessão JWT inválida. Entre de novo.",
+                }, ensure_ascii=False))
+                return
+            pub = str(payload.get("publicKey") or "")
+            try:
+                self.session_key = derive_session_key(self.session_priv, pub)
+            except Exception:
+                self.ws_send_text(json.dumps({
+                    "op": "error",
+                    "text": "Falha ao abrir sessão criptografada.",
+                }, ensure_ascii=False))
+                return
+            self.session_user = claims["name"]
+            self.session_jti = claims["jti"]
+            self.session_aad = session_aad(claims["jti"])
+            self.ws_send_text(json.dumps({
+                "op": "session_ok",
+                "session": "ecdh-aesgcm",
+                "name": claims["name"],
+            }, ensure_ascii=False))
+            return
+        if self.session_user and op not in SESSION_CLEAR_OPS:
+            token = str(payload.get("token") or "")
+            if token:
+                token_name = verify_jwt(token)
+                if not token_name or token_name.lower() != self.session_user.lower():
+                    self.ws_send_text(json.dumps({
+                        "op": "need_auth",
+                        "text": "JWT da sessão não confere.",
+                    }, ensure_ascii=False))
+                    return
         if op == "join":
             if not LIMITER.allow(f"join:{self.client_ip()}", 20, 60):
                 self.ws_send_text(json.dumps({
@@ -1755,6 +2330,45 @@ class ChatHandler(BaseHTTPRequestHandler):
             })
             return
 
+        if op == "leave_group":
+            user = HUB.get_user(cid)
+            if not user.get("name"):
+                return
+            result = HUB.leave_group(user["name"], str(payload.get("groupId") or ""))
+            if not result.get("ok"):
+                self.ws_send_text(json.dumps({"op": "error", "text": result.get("error")}, ensure_ascii=False))
+                return
+            self.ws_send_text(json.dumps({
+                "op": "group_left",
+                "groupId": payload.get("groupId"),
+                "groups": HUB.groups_for(user["name"]),
+            }, ensure_ascii=False))
+            broadcast({
+                "op": "group_updated",
+                "group": result["group"],
+            })
+            return
+
+        if op == "open_dm":
+            user = HUB.get_user(cid)
+            if not user.get("name"):
+                return
+            result = HUB.open_dm(user["name"], str(payload.get("target") or ""))
+            if not result.get("ok"):
+                self.ws_send_text(json.dumps({"op": "error", "text": result.get("error")}, ensure_ascii=False))
+                return
+            gid = result["group"]["id"]
+            self.ws_send_text(json.dumps({
+                "op": "dm_open",
+                "group": result["group"],
+                "groups": HUB.groups_for(user["name"]),
+                "groupId": gid,
+                "messages": HUB.snapshot(user["name"], gid),
+                "wraps": HUB.wraps_for(gid),
+                "pubkeys": HUB.pubkeys_map(),
+            }, ensure_ascii=False))
+            return
+
         if op == "join_group":
             user = HUB.get_user(cid)
             if not user.get("name"):
@@ -1827,6 +2441,81 @@ class ChatHandler(BaseHTTPRequestHandler):
             system_message(f"{user['name']} agora é administrador")
             return
 
+        if op == "security_sessions":
+            user = HUB.get_user(cid)
+            if not HUB.is_admin(user.get("name")):
+                self.ws_send_text(json.dumps({
+                    "op": "error",
+                    "text": "Só administrador vê o módulo de segurança.",
+                }, ensure_ascii=False))
+                return
+            self.ws_send_text(json.dumps({
+                "op": "security_sessions",
+                "sessions": HUB.security_sessions(),
+            }, ensure_ascii=False))
+            return
+
+        if op == "kick_session":
+            user = HUB.get_user(cid)
+            if not HUB.is_admin(user.get("name")):
+                self.ws_send_text(json.dumps({
+                    "op": "error",
+                    "text": "Só administrador pode encerrar sessão.",
+                }, ensure_ascii=False))
+                return
+            sid = str(payload.get("sid") or "")
+            if not sid or sid == cid:
+                self.ws_send_text(json.dumps({
+                    "op": "error",
+                    "text": "Não é possível encerrar a própria sessão por aqui.",
+                }, ensure_ascii=False))
+                return
+            ok = HUB.kick_sid(sid, "Um administrador encerrou esta sessão.")
+            log = HUB.add_log("kick_session", user.get("name"), payload.get("target") or "", reason="sessão encerrada")
+            broadcast_admins({
+                "op": "security_sessions",
+                "sessions": HUB.security_sessions(),
+            })
+            if log:
+                broadcast_admins({"op": "moderation_log", "entry": log, "logs": HUB.recent_logs()})
+            if not ok:
+                self.ws_send_text(json.dumps({"op": "error", "text": "Sessão não encontrada."}, ensure_ascii=False))
+            return
+
+        if op == "share_location":
+            user = HUB.get_user(cid)
+            if not user.get("name"):
+                return
+            if not LIMITER.allow(f"loc:{self.client_ip()}", 20, 60):
+                self.ws_send_text(json.dumps({"op": "error", "text": "Muitos envios de localização."}, ensure_ascii=False))
+                return
+            saved = HUB.set_location(
+                cid,
+                payload.get("lat"),
+                payload.get("lng"),
+                payload.get("accuracy"),
+                payload.get("minutes") or 15,
+            )
+            if not saved:
+                self.ws_send_text(json.dumps({"op": "error", "text": "Localização inválida."}, ensure_ascii=False))
+                return
+            self.ws_send_text(json.dumps({"op": "location_on", **saved}, ensure_ascii=False))
+            broadcast_admins({
+                "op": "security_sessions",
+                "sessions": HUB.security_sessions(),
+            })
+            return
+
+        if op == "stop_location":
+            name = HUB.clear_location(cid)
+            if name:
+                self.ws_send_text(json.dumps({"op": "location_off"}, ensure_ascii=False))
+                broadcast_admins({
+                    "op": "security_sessions",
+                    "sessions": HUB.security_sessions(),
+                })
+            return
+
         if op == "logs":
             user = HUB.get_user(cid)
             if not HUB.is_admin(user.get("name")):
@@ -1895,6 +2584,61 @@ class ChatHandler(BaseHTTPRequestHandler):
             broadcast({"op": "moderation_state", "users": HUB.presence_list()})
             return
 
+        if op == "shell":
+            user = HUB.get_user(cid)
+            name = user.get("name") or ""
+            raw = str(payload.get("cmd") or "").strip()
+            if not raw:
+                return
+            if not LIMITER.allow(f"shell:{self.client_ip()}", 20, 30):
+                self.ws_send_text(json.dumps({"op": "shell_out", "text": "shell limitado. aguarde."}, ensure_ascii=False))
+                return
+            parts = raw.split()
+            cmd = parts[0].lower().lstrip("/")
+            arg = " ".join(parts[1:]).strip()
+            if cmd in {"help", "?"}:
+                out = "help status users health whoami net ip proto peers logs\nadmin: mute NOME | unmute NOME | kick NOME"
+            elif cmd in {"net", "ip", "proto", "peers"}:
+                ip = self.client_ip()
+                proto = self.headers.get("X-Forwarded-Proto") or "http"
+                host = self.headers.get("Host") or ""
+                if cmd == "ip":
+                    out = f"seu ip={ip}"
+                elif cmd == "proto":
+                    out = f"proto={proto} host={host}"
+                elif cmd == "peers":
+                    out = f"conexoes ws={len(HUB.clients)}"
+                else:
+                    out = f"ip={ip}\nproto={proto}\nhost={host}\nws={len(HUB.clients)}\nuptime={int(time.time()-STARTED_AT)}s"
+            elif cmd == "whoami":
+                flags = HUB.user_flags(name)
+                out = f"{name} admin={bool(flags.get('admin'))} muted={bool(flags.get('muted'))} ip={self.client_ip()}"
+            elif cmd == "status":
+                out = f"online={len(HUB.clients)} mensagens={len(HUB.messages)} grupos={len(HUB.groups)}"
+            elif cmd == "users":
+                out = "\n".join(f"{u.get('name')} {u.get('status')}" for u in HUB.presence_list()[:40]) or "ninguem"
+            elif cmd == "health":
+                out = f"ok uptime={int(time.time()-STARTED_AT)}s db=sqlite"
+            elif cmd == "logs":
+                out = "so admin ve logs" if not HUB.is_admin(name) else (
+                    "\n".join(f"{(x.get('action') or '')} {(x.get('target') or '')}" for x in (HUB.recent_logs() or [])[:12]) or "sem logs"
+                )
+            elif cmd in {"mute", "unmute", "kick"}:
+                if not HUB.is_admin(name):
+                    out = "so admin"
+                elif not arg:
+                    out = "informe o nome"
+                elif cmd == "kick":
+                    HUB.kick(arg, "Removido pelo shell.")
+                    out = f"kick {arg}"
+                else:
+                    result = HUB.moderate(name, arg, cmd, 10 if cmd == "mute" else 0)
+                    out = result.get("error") if not result.get("ok") else f"{cmd} {arg}"
+            else:
+                out = f"comando desconhecido: {cmd}. use /help"
+            self.ws_send_text(json.dumps({"op": "shell_out", "cmd": raw, "text": out}, ensure_ascii=False))
+            return
+
         if op == "ping":
             HUB.beat(cid)
             self.ws_send_text(json.dumps({"op": "pong", "t": payload.get("t")}, ensure_ascii=False))
@@ -1932,7 +2676,30 @@ class ChatHandler(BaseHTTPRequestHandler):
                     "id": result.get("id"),
                     "clientId": result.get("clientId"),
                     "by": user["name"],
+                    "forEveryone": True,
                 })
+            return
+
+        if op == "edit":
+            user = HUB.get_user(cid)
+            if not user.get("name"):
+                return
+            result = HUB.edit_message(
+                user["name"],
+                str(payload.get("id") or ""),
+                str(payload.get("text") or ""),
+                bool(payload.get("e2e")),
+                payload.get("iv"),
+                payload.get("ct"),
+            )
+            if result is False:
+                self.ws_send_text(json.dumps({
+                    "op": "error",
+                    "text": "Você não pode editar esta mensagem.",
+                }, ensure_ascii=False))
+                return
+            if result:
+                broadcast({"op": "edited", "message": result})
             return
 
         if op == "typing":
@@ -1979,7 +2746,7 @@ class ChatHandler(BaseHTTPRequestHandler):
                     "text": "Você está bloqueado e não pode enviar mensagens.",
                 }, ensure_ascii=False))
                 return
-            mtype = payload.get("type") if payload.get("type") in {"text", "video", "image"} else "text"
+            mtype = payload.get("type") if payload.get("type") in {"text", "video", "image", "radio"} else "text"
             e2e = bool(payload.get("e2e"))
             text = "" if e2e else str(payload.get("text") or "").strip()[:MAX_TEXT]
             media = payload.get("mediaUrl")
@@ -1994,7 +2761,7 @@ class ChatHandler(BaseHTTPRequestHandler):
                 return
             if e2e and mtype == "text" and not payload.get("ct"):
                 return
-            if mtype in {"video", "image"} and not media:
+            if mtype in {"video", "image", "radio"} and not media:
                 return
             if media and not str(media).startswith("/uploads/"):
                 return
@@ -2032,6 +2799,13 @@ class ChatHandler(BaseHTTPRequestHandler):
             threading.Thread(target=push_message, args=(stored,), daemon=True).start()
 
     def ws_send_text(self, text: str):
+        if self.session_key:
+            try:
+                obj = json.loads(text)
+                if isinstance(obj, dict) and not obj.get("sess") and obj.get("op") not in SESSION_CLEAR_OPS:
+                    text = json.dumps(seal_session(self.session_key, obj, self.session_aad), ensure_ascii=False)
+            except Exception:
+                pass
         data = text.encode("utf-8")
         header = bytearray([0x81])
         n = len(data)
@@ -2091,6 +2865,33 @@ class ChatHandler(BaseHTTPRequestHandler):
 class ReuseServer(ThreadingHTTPServer):
     allow_reuse_address = True
     daemon_threads = True
+    request_queue_size = 512
+    timeout = 30
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except Exception:
+            pass
+        try:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        except Exception:
+            pass
+        super().server_bind()
+
+    def process_request(self, request, client_address):
+        try:
+            request.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        except Exception:
+            pass
+        if len(HUB.clients) > int(os.environ.get("WS_MAX_CLIENTS", "800")):
+            try:
+                request.close()
+            except Exception:
+                pass
+            return
+        super().process_request(request, client_address)
 
 
 def watchdog():

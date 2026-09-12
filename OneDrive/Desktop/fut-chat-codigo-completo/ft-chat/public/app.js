@@ -38,6 +38,11 @@
   let socket = null;
   let me = JSON.parse(localStorage.getItem("chat_user") || "null");
   let authToken = localStorage.getItem("ft_jwt") || "";
+  let sessionKey = null;
+  let sessionWait = Promise.resolve();
+  let sessionWaitRes = null;
+  let lastServerPub = "";
+  let sessionJti = "";
   let refreshToken = localStorage.getItem("ft_refresh") || "";
   let accessExp = Number(localStorage.getItem("ft_jwt_exp") || 0);
   let refreshTimer = null;
@@ -483,13 +488,17 @@
   }
 
   function setOfflineUI() {
-    const offline = !isOnline() || !socketOpen();
-    offlineBar.classList.toggle("hidden", !offline);
-    if (offline) {
-      onlineLabel.textContent = isOnline() ? "reconectando…" : "offline — fila local";
+    const netDown = !isOnline();
+    const wsDown = !socketOpen();
+    offlineBar.classList.toggle("hidden", !netDown);
+    if (netDown) {
+      onlineLabel.textContent = "sem internet";
       onlineLabel.style.color = "#ffd56a";
+    } else if (wsDown) {
+      onlineLabel.textContent = "conectando…";
+      onlineLabel.style.color = "#53bdeb";
     } else {
-      onlineLabel.style.color = "#31a24c";
+      onlineLabel.style.color = "#00a884";
     }
   }
 
@@ -677,6 +686,20 @@
         cap.textContent = msg.text;
         bubble.appendChild(cap);
       }
+    } else if (msg.type === "radio") {
+      const wrap = document.createElement("div");
+      const tag = document.createElement("div");
+      tag.textContent = "📡 Rádio";
+      const audio = document.createElement("audio");
+      audio.controls = true;
+      audio.preload = "metadata";
+      audio.src = msg.mediaUrl;
+      wrap.appendChild(tag);
+      wrap.appendChild(audio);
+      bubble.appendChild(wrap);
+      if (!mine && !document.hidden) {
+        audio.play().catch(() => {});
+      }
     } else if (msg.type === "image") {
       const img = document.createElement("img");
       img.src = msg.mediaUrl;
@@ -692,6 +715,12 @@
       const t = document.createElement("div");
       t.textContent = msg.text;
       bubble.appendChild(t);
+      if (msg.edited) {
+        const ed = document.createElement("small");
+        ed.style.opacity = ".7";
+        ed.textContent = " editada";
+        t.appendChild(ed);
+      }
     }
 
     const meta = document.createElement("div");
@@ -713,9 +742,10 @@
     row.addEventListener("click", () => setReply(msgIndex.get(msg.id) || msg));
     row.addEventListener("contextmenu", (ev) => {
       ev.preventDefault();
-      if (mine || (me && me.admin)) {
-        if (confirm("Apagar esta mensagem?")) emit({ op: "delete", id: msg.id });
-      } else setReply(msg);
+      messageActions(msg, mine);
+    });
+    row.addEventListener("dblclick", () => {
+      if (mine) messageActions(msg, true);
     });
     thread.appendChild(row);
     applyTicks(row, msg);
@@ -756,7 +786,10 @@
     (groups.length ? groups : [{ id: "aberto", name: "FT Chat", kind: "public" }]).forEach((row) => {
       const li = document.createElement("li");
       if (row.id === currentGroupId) li.className = "on";
-      li.textContent = row.name;
+      const label = row.kind === "dm" && me
+        ? (row.members || []).find((n) => n.toLowerCase() !== me.name.toLowerCase()) || row.name
+        : row.name;
+      li.textContent = label;
       const lock = document.createElement("span");
       lock.className = "lock-dot";
       lock.textContent = row.kind === "public" ? "público · E2E" : `${(row.members || []).length} membros · E2E`;
@@ -764,6 +797,29 @@
       li.addEventListener("click", () => switchGroup(row.id));
       list.appendChild(li);
     });
+  }
+
+  function goHome() {
+    currentGroupId = "aberto";
+    renderGroups();
+    emit({ op: "join_group", groupId: "aberto" });
+    $("roster")?.classList.remove("open");
+    toast("Chat aberto");
+  }
+
+  function messageActions(msg, mine) {
+    if (!msg || msg.deleted) return;
+    if (mine) {
+      const choice = prompt("1 = editar\n2 = apagar para todos\nCancelar = nada", "2");
+      if (choice === "1") {
+        const next = prompt("Nova mensagem", msg.text || "");
+        if (next && next.trim()) emit({ op: "edit", id: msg.id, text: next.trim() });
+      } else if (choice === "2") {
+        if (confirm("Apagar para todos?")) emit({ op: "delete", id: msg.id });
+      }
+      return;
+    }
+    setReply(msg);
   }
 
   function switchGroup(gid) {
@@ -781,13 +837,83 @@
     setOfflineUI();
   }
 
-  function emit(payload) {
+  function jwtJti(tok) {
+    try {
+      let mid = String(tok || "").split(".")[1] || "";
+      mid = mid.replace(/-/g, "+").replace(/_/g, "/");
+      while (mid.length % 4) mid += "=";
+      return JSON.parse(atob(mid)).jti || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function sessionAad() {
+    return new TextEncoder().encode(`ft-session:${sessionJti}`);
+  }
+
+  async function openSession(serverPub) {
+    if (!authToken) throw new Error("JWT ausente para abrir a sessão");
+    sessionJti = jwtJti(authToken);
+    if (!sessionJti) throw new Error("JWT sem jti");
+    const pair = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+    const raw = await crypto.subtle.exportKey("raw", pair.publicKey);
+    const their = await crypto.subtle.importKey("raw", b64.dec(serverPub), { name: "ECDH", namedCurve: "P-256" }, true, []);
+    const bits = await crypto.subtle.deriveBits({ name: "ECDH", public: their }, pair.privateKey, 256);
+    const base = await crypto.subtle.importKey("raw", bits, "HKDF", false, ["deriveKey"]);
+    sessionKey = await crypto.subtle.deriveKey(
+      {
+        name: "HKDF",
+        hash: "SHA-256",
+        salt: new TextEncoder().encode("ft-chat-session"),
+        info: new TextEncoder().encode("ws-aesgcm"),
+      },
+      base,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
     if (socketOpen()) {
-      if (authToken && payload.op !== "ping") payload.token = payload.token || authToken;
-      socket.send(JSON.stringify(payload));
+      socket.send(JSON.stringify({
+        op: "session_open",
+        publicKey: b64.enc(raw),
+        token: authToken,
+      }));
+    }
+  }
+
+  async function sealSession(obj) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv, additionalData: sessionAad() },
+      sessionKey,
+      new TextEncoder().encode(JSON.stringify(obj)),
+    );
+    return { sess: true, iv: b64.enc(iv), ct: b64.enc(ct) };
+  }
+
+  async function openSessionBox(blob) {
+    const pt = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: b64.dec(blob.iv), additionalData: sessionAad() },
+      sessionKey,
+      b64.dec(blob.ct),
+    );
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+
+  function emit(payload) {
+    if (!socketOpen()) return false;
+    if (authToken && payload.op !== "ping" && payload.op !== "session_open") {
+      payload.token = payload.token || authToken;
+    }
+    if (sessionKey && payload.op !== "session_open") {
+      sealSession(payload).then((env) => {
+        if (socketOpen()) socket.send(JSON.stringify(env));
+      }).catch(() => {});
       return true;
     }
-    return false;
+    socket.send(JSON.stringify(payload));
+    return true;
   }
 
   function saveTokens(data, name) {
@@ -851,6 +977,18 @@
       ? "busy"
       : (document.hidden ? "away" : (manualStatus || "available"));
     await ensureAuth(name);
+    if (!sessionKey && lastServerPub) {
+      try {
+        sessionWait = new Promise((resolve) => { sessionWaitRes = resolve; });
+        await openSession(lastServerPub);
+      } catch {
+        sessionWaitRes && sessionWaitRes();
+      }
+    }
+    await Promise.race([
+      sessionWait || Promise.resolve(),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]);
     return emit({ op: "join", name, status, publicKey: e2e.pub, token: authToken });
   }
 
@@ -950,7 +1088,7 @@
 
   function scheduleReconnect() {
     clearTimeout(reconnectTimer);
-    const wait = Math.min(15000, 800 * Math.pow(1.6, reconnectAttempt));
+    const wait = Math.min(4000, 250 * Math.pow(1.35, reconnectAttempt));
     reconnectAttempt += 1;
     reconnectTimer = setTimeout(connect, wait);
   }
@@ -977,17 +1115,11 @@
 
     socket.addEventListener("open", () => {
       reconnectAttempt = 0;
+      sessionKey = null;
+      sessionWait = new Promise((resolve) => { sessionWaitRes = resolve; });
+      setTimeout(() => sessionWaitRes && sessionWaitRes(), 2500);
       setOfflineUI();
       startHeartbeat();
-      const status = manualStatus === "busy"
-        ? "busy"
-        : (document.hidden ? "away" : (manualStatus || "available"));
-      e2e.boot().then(() => identity.rememberMe()).then(async () => {
-        if (me?.name && !app.classList.contains("hidden")) {
-          try { await joinNow(me.name); } catch (err) { toast(err.message || "Login falhou"); }
-        }
-        flushOutbox();
-      });
     });
 
     socket.addEventListener("close", () => {
@@ -1000,12 +1132,19 @@
       setOfflineUI();
     });
 
-    socket.addEventListener("message", (ev) => {
+    socket.addEventListener("message", async (ev) => {
       let data;
       try {
         data = JSON.parse(ev.data);
       } catch {
         return;
+      }
+      if (data.sess && sessionKey) {
+        try {
+          data = await openSessionBox(data);
+        } catch {
+          return;
+        }
       }
       onEvent(data);
     });
@@ -1108,6 +1247,22 @@
       case "moderation_state":
         if (data.users) renderUsers(data.users);
         break;
+      case "kicked":
+        toast(data.reason || "Sessão encerrada pelo admin.");
+        break;
+      case "security_sessions":
+        renderSessions(data.sessions || []);
+        break;
+      case "location_on":
+        $("loc-share")?.classList.add("hidden");
+        $("loc-stop")?.classList.remove("hidden");
+        toast("Localização ligada por 15 min. Só o admin vê.");
+        break;
+      case "location_off":
+        $("loc-stop")?.classList.add("hidden");
+        $("loc-share")?.classList.remove("hidden");
+        toast("Localização desligada.");
+        break;
       case "banned":
         toast(data.reason || "Você foi banido.");
         myFlags.banned = true;
@@ -1131,6 +1286,31 @@
         renderMessage(next, false);
         break;
       }
+      case "edited": {
+        const msg = data.message;
+        if (msg) {
+          msgIndex.set(msg.id, msg);
+          renderMessage(msg, false);
+        }
+        break;
+      }
+      case "dm_open": {
+        groups = data.groups || groups;
+        if (data.group && !groups.find((g) => g.id === data.group.id)) groups.push(data.group);
+        currentGroupId = data.groupId || data.group?.id || currentGroupId;
+        renderGroups();
+        thread.innerHTML = "";
+        lastDay = "";
+        rendered.clear();
+        (data.messages || []).forEach((m) => renderMessage(m, false));
+        toast("Conversa particular");
+        break;
+      }
+      case "group_left":
+        groups = data.groups || groups;
+        goHome();
+        toast("Você saiu do grupo");
+        break;
       case "deleted": {
         const cur = msgIndex.get(data.id) || msgIndex.get(data.clientId) || { id: data.id };
         renderMessage({ ...cur, deleted: true }, false);
@@ -1187,6 +1367,19 @@
         cacheMessage(data);
         break;
       case "hello":
+        lastServerPub = data.serverPub || "";
+        if (lastServerPub && authToken) {
+          openSession(lastServerPub).catch(() => toast("Falha na sessão JWT."));
+        }
+        break;
+      case "session_ok":
+        sessionWaitRes && sessionWaitRes();
+        e2e.boot().then(() => identity.rememberMe()).then(async () => {
+          if (me?.name && !app.classList.contains("hidden")) {
+            try { await joinNow(me.name); } catch (err) { toast(err.message || "Login falhou"); }
+          }
+          flushOutbox();
+        });
         break;
       case "need_auth":
         if (me?.name) {
@@ -1195,6 +1388,11 @@
           toast(data.text || "Entre novamente.");
         }
         break;
+      case "shell_out": {
+        const box = $("shell-out");
+        if (box) box.textContent = (box.textContent + "\n$ " + (data.cmd || "") + "\n" + (data.text || "")).slice(-2500);
+        break;
+      }
       case "error":
         toast(data.text || "Erro");
         break;
@@ -1245,6 +1443,8 @@
       onlineLabel.style.color = "#31a24c";
     }
     peopleList.innerHTML = "";
+    const roster = $("roster-list");
+    if (roster) roster.innerHTML = "";
     lastUsers.forEach((u) => {
       const li = document.createElement("li");
       const dot = document.createElement("span");
@@ -1267,7 +1467,15 @@
       meta.appendChild(small);
       li.appendChild(dot);
       li.appendChild(meta);
+      if (me && u.name !== me.name) {
+        li.addEventListener("click", () => emit({ op: "open_dm", target: u.name }));
+      }
       peopleList.appendChild(li);
+      if (roster && me && u.name !== me.name) {
+        const copy = li.cloneNode(true);
+        copy.addEventListener("click", () => emit({ op: "open_dm", target: u.name }));
+        roster.appendChild(copy);
+      }
     });
     renderAdminList();
   }
@@ -1351,6 +1559,54 @@
     emit({ op: "moderate", target, action, minutes: minutes || 0 });
   }
 
+  function renderSessions(rows) {
+    const list = $("session-list");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!rows.length) {
+      const empty = document.createElement("li");
+      empty.textContent = "Nenhuma sessão online.";
+      list.appendChild(empty);
+      return;
+    }
+    rows.forEach((s) => {
+      const li = document.createElement("li");
+      const title = document.createElement("strong");
+      title.textContent = s.name || "—";
+      const meta = document.createElement("div");
+      meta.className = "fp-mini";
+      const bits = [`IP ${s.ip || "?"}`, (s.ua || "aparelho").slice(0, 48)];
+      if (s.sharing && s.location) {
+        bits.push(`loc ${s.location.lat}, ${s.location.lng}`);
+      }
+      meta.textContent = bits.join(" · ");
+      const actions = document.createElement("div");
+      actions.className = "mod-actions";
+      if (s.sharing && s.location) {
+        const map = document.createElement("button");
+        map.type = "button";
+        map.className = "free";
+        map.textContent = "Mapa";
+        map.addEventListener("click", () => {
+          window.open(`https://www.openstreetmap.org/?mlat=${s.location.lat}&mlon=${s.location.lng}#map=16/${s.location.lat}/${s.location.lng}`, "_blank", "noopener");
+        });
+        actions.appendChild(map);
+      }
+      if (me && s.name !== me.name) {
+        const kick = document.createElement("button");
+        kick.type = "button";
+        kick.className = "ban";
+        kick.textContent = "Encerrar sessão";
+        kick.addEventListener("click", () => emit({ op: "kick_session", sid: s.sid, target: s.name }));
+        actions.appendChild(kick);
+      }
+      li.appendChild(title);
+      li.appendChild(meta);
+      li.appendChild(actions);
+      list.appendChild(li);
+    });
+  }
+
   function renderAdminList() {
     if (!adminList) return;
     adminList.innerHTML = "";
@@ -1402,9 +1658,54 @@
         : `${names.slice(0, 2).join(", ")} estão digitando…`;
   }
 
+  let pendingRadioText = "";
+
+  function netUp() {
+    return isOnline() && socketOpen();
+  }
+
+  function askRadio(text) {
+    pendingRadioText = text || "";
+    const sheet = $("radio-sheet");
+    if ($("radio-preview")) $("radio-preview").textContent = pendingRadioText.slice(0, 140);
+    sheet?.classList.remove("hidden");
+  }
+
+  async function sendViaLora(text) {
+    const body = {
+      name: me?.name || "anon",
+      text: String(text || "").slice(0, 200),
+      groupId: currentGroupId,
+      via: "lora",
+      createdAt: Date.now(),
+    };
+    try {
+      const res = await fetch("/api/radio/lora", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: authToken ? `Bearer ${authToken}` : "" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Gateway LoRa indisponível");
+      toast(data.forwarded ? "LoRa enviado ao gateway." : "LoRa na fila local. Liga o gateway.");
+      renderSystem({
+        id: uid(),
+        type: "system",
+        text: `📡 LoRa: ${body.text}`,
+        createdAt: Date.now(),
+      });
+    } catch (err) {
+      toast(err.message || "Falha LoRa");
+    }
+  }
+
   async function sendText(text) {
     if (!me?.name) {
       toast("Entre com um nome antes de enviar.");
+      return;
+    }
+    if (!netUp()) {
+      askRadio(text);
       return;
     }
     if (myFlags.muted || myFlags.blocked || myFlags.banned) {
@@ -1527,21 +1828,72 @@
     setOfflineUI();
   }
 
+  async function enterWithGoogle(resp) {
+    const res = await fetch("/api/auth/google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential: resp.credential }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Google recusado");
+    saveTokens(data, data.name);
+    me = { name: data.name, color: colorFromName(data.name), picture: data.picture };
+    localStorage.setItem("chat_user", JSON.stringify(me));
+    try { await e2e.boot(); } catch { /* ignore */ }
+    enterApp();
+    await joinNow(data.name);
+  }
+
+  (function resumeGoogleHash() {
+    const hash = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+    const gtok = hash.get("gtok");
+    const gname = hash.get("gname");
+    if (!gtok || !gname) return;
+    saveTokens({ accessToken: gtok, refreshToken: hash.get("gref") || "", expiresIn: 900 }, gname);
+    me = { name: gname, color: colorFromName(gname) };
+    localStorage.setItem("chat_user", JSON.stringify(me));
+    history.replaceState({}, "", location.pathname);
+    e2e.boot().catch(() => {}).then(() => {
+      enterApp();
+      joinNow(gname).catch((err) => toast(err.message || "Falha ao entrar"));
+    });
+  })();
+
+  fetch("/api/config").then((r) => r.json()).then((cfg) => {
+    if (cfg?.googleOAuth) $("google-oauth-link")?.classList.remove("hidden");
+    if (!cfg?.googleClientId || !$("google-btn")) return;
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true;
+    s.onload = () => {
+      if (!window.google?.accounts?.id) return;
+      window.google.accounts.id.initialize({
+        client_id: cfg.googleClientId,
+        callback: (g) => enterWithGoogle(g).catch((err) => toast(err.message || "Google falhou")),
+      });
+      window.google.accounts.id.renderButton($("google-btn"), {
+        theme: "filled_black",
+        size: "large",
+        width: 280,
+      });
+    };
+    document.head.appendChild(s);
+  }).catch(() => {});
+
   joinForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = nameInput.value.trim();
     if (!name) return;
     me = { name, color: colorFromName(name) };
     localStorage.setItem("chat_user", JSON.stringify(me));
-    await e2e.boot();
+    try { await e2e.boot(); } catch { /* WebCrypto indisponível */ }
+    enterApp();
     try {
       if (!await joinNow(name)) {
-        enterApp();
         toast("Você entrou offline. As mensagens sobem quando voltar a rede.");
       }
     } catch (err) {
-      toast(err.message || "Não foi possível autenticar.");
-      return;
+      toast(err.message || "Conectado sem sessão cifrada.");
     }
   });
 
@@ -1580,6 +1932,16 @@
   $("people-btn").addEventListener("click", () => {
     closeMore();
     people.classList.toggle("hidden");
+    $("roster")?.classList.toggle("open");
+  });
+  $("home-btn")?.addEventListener("click", goHome);
+  $("back-btn")?.addEventListener("click", goHome);
+  $("leave-group")?.addEventListener("click", () => {
+    if (currentGroupId === "aberto") {
+      toast("Você já está no chat aberto.");
+      return;
+    }
+    if (confirm("Sair deste grupo/conversa?")) emit({ op: "leave_group", groupId: currentGroupId });
   });
   $("id-btn").addEventListener("click", async () => {
     closeMore();
@@ -1596,6 +1958,26 @@
     } catch {
       toast(identity.myFp);
     }
+  });
+  $("shell-btn")?.addEventListener("click", () => {
+    closeMore();
+    $("sys-shell")?.classList.toggle("hidden");
+    $("shell-in")?.focus();
+  });
+  $("shell-close")?.addEventListener("click", () => $("sys-shell")?.classList.add("hidden"));
+  $("shell-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = $("shell-in");
+    const cmd = (input?.value || "").trim();
+    if (!cmd) return;
+    input.value = "";
+    if (cmd === "/home" || cmd === "home") {
+      goHome();
+      const box = $("shell-out");
+      if (box) box.textContent += "\n$ home\nvoltou ao chat aberto";
+      return;
+    }
+    emit({ op: "shell", cmd });
   });
   $("groups-btn").addEventListener("click", () => {
     closeMore();
@@ -1642,11 +2024,34 @@
       if (Notification && Notification.permission === "default") {
         Notification.requestPermission().catch(() => {});
       }
+      if (myFlags.admin) emit({ op: "security_sessions" });
     }
     setAdminUI();
   });
   $("admin-close").addEventListener("click", () => adminPanel.classList.add("hidden"));
   $("logs-refresh").addEventListener("click", () => emit({ op: "logs" }));
+  $("sessions-refresh")?.addEventListener("click", () => emit({ op: "security_sessions" }));
+  $("loc-share")?.addEventListener("click", () => {
+    if (!navigator.geolocation) {
+      toast("Este aparelho não informa localização.");
+      return;
+    }
+    toast("O navegador vai pedir permissão de localização.");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        emit({
+          op: "share_location",
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          minutes: 15,
+        });
+      },
+      () => toast("Permissão de localização negada."),
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 30000 },
+    );
+  });
+  $("loc-stop")?.addEventListener("click", () => emit({ op: "stop_location" }));
   $("push-btn").addEventListener("click", () => enablePush(true));
   $("notify-btn").addEventListener("click", () => enablePush(true));
   $("reply-cancel").addEventListener("click", clearReply);
@@ -1737,6 +2142,67 @@
       e.preventDefault();
       composer.requestSubmit();
     }
+  });
+
+  let radioRec = null;
+  let radioChunks = [];
+  async function startRadio() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast("Este aparelho não tem microfone.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      radioChunks = [];
+      radioRec = new MediaRecorder(stream);
+      radioRec.ondataavailable = (ev) => { if (ev.data.size) radioChunks.push(ev.data); };
+      radioRec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(radioChunks, { type: radioRec.mimeType || "audio/webm" });
+        radioRec = null;
+        if (blob.size < 400) {
+          toast("Rádio muito curto.");
+          return;
+        }
+        const file = new File([blob], `radio-${Date.now()}.webm`, { type: blob.type });
+        toast("Enviando rádio…");
+        await sendFile(file, "");
+      };
+      radioRec.start();
+      $("radio-btn")?.classList.add("on");
+      toast("Rádio no ar — solte para enviar");
+    } catch {
+      toast("Permissão de microfone negada.");
+    }
+  }
+  function stopRadio() {
+    $("radio-btn")?.classList.remove("on");
+    if (radioRec && radioRec.state !== "inactive") radioRec.stop();
+  }
+  $("radio-btn")?.addEventListener("pointerdown", (e) => { e.preventDefault(); startRadio(); });
+  $("radio-btn")?.addEventListener("pointerup", stopRadio);
+  $("radio-btn")?.addEventListener("pointerleave", stopRadio);
+  $("radio-close")?.addEventListener("click", () => $("radio-sheet").classList.add("hidden"));
+  $("radio-wait")?.addEventListener("click", async () => {
+    $("radio-sheet").classList.add("hidden");
+    if (pendingRadioText) {
+      await enqueue({
+        id: uid(),
+        kind: "text",
+        text: pendingRadioText,
+        createdAt: Date.now(),
+        groupId: currentGroupId,
+      });
+      toast("Guardado. Sobe quando a internet voltar.");
+    }
+  });
+  $("radio-ptt")?.addEventListener("click", () => {
+    $("radio-sheet").classList.add("hidden");
+    startRadio();
+  });
+  $("radio-lora")?.addEventListener("click", () => {
+    $("radio-sheet").classList.add("hidden");
+    sendViaLora(pendingRadioText);
   });
 
   composer.addEventListener("submit", (e) => {
@@ -1843,9 +2309,12 @@
       .then((info) => {
         if (info?.ok && !socketOpen()) connect();
       })
-      .catch(() => setOfflineUI());
+      .catch(() => {
+        if (!isOnline()) setOfflineUI();
+        else if (!socketOpen()) connect();
+      });
   }
-  healthTimer = setInterval(pollHealth, 8000);
+  healthTimer = setInterval(pollHealth, 20000);
 
   function openMobileSheet() {
     const sheet = $("mobile-sheet");

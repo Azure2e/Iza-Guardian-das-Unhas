@@ -1,0 +1,21 @@
+FT Chat — instalar no terminal (Windows PowerShell)
+
+cd $env:USERPROFILE\OneDrive\Desktop\ft-chat-codigo-completo\ft-chat
+py -3 -m pip install -r requirements.txt
+py -3 -m pip install websockets
+py -3 -u server.py
+
+Abra: http://localhost:3000
+
+Com internet: a mensagem vai pela rede.
+Sem internet: "Sem internet. Deseja mandar via radio?"
+  PTT = microfone (botao 📻)
+  LoRa = fila em data/lora-outbox.json
+  Opcional: $env:LORA_GATEWAY_URL="http://127.0.0.1:8088/lora"
+
+Testes (outro terminal):
+py -3 loadtest_http.py --url http://127.0.0.1:3000 --requests 80 --concurrency 20
+py -3 loadtest_ws.py --url http://127.0.0.1:3000 --clients 20 --messages 2 --concurrency 8
+
+Google: crie OAuth Client ID em https://console.cloud.google.com e defina GOOGLE_CLIENT_ID
+SQLite: data/ftchat.db (WAL)

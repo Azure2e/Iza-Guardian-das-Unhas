@@ -49,6 +49,64 @@ LOG_FILE = os.path.join(LOG_DIR, "erros.log")
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "cone-sul-taxi-2026-dev")
 
+_REDIS = None
+_MEM_CACHE = {}
+
+
+def redis_client():
+    global _REDIS
+    if _REDIS is False:
+        return None
+    if _REDIS is not None:
+        return _REDIS
+    url = os.environ.get("REDIS_URL", "").strip()
+    if not url:
+        _REDIS = False
+        return None
+    try:
+        import redis
+        cli = redis.from_url(url, socket_timeout=1.5, decode_responses=True)
+        cli.ping()
+        _REDIS = cli
+        return cli
+    except Exception:
+        _REDIS = False
+        return None
+
+
+def cache_get(key):
+    r = redis_client()
+    if r is not None:
+        raw = r.get(key)
+        return json.loads(raw) if raw else None
+    hit = _MEM_CACHE.get(key)
+    if not hit:
+        return None
+    val, exp = hit
+    if exp < time.time():
+        _MEM_CACHE.pop(key, None)
+        return None
+    return val
+
+
+def cache_set(key, value, ttl=25):
+    r = redis_client()
+    if r is not None:
+        r.setex(key, ttl, json.dumps(value))
+        return
+    _MEM_CACHE[key] = (value, time.time() + ttl)
+
+
+def cache_bust(prefix="dash"):
+    r = redis_client()
+    if r is not None:
+        for key in r.scan_iter(f"{prefix}*"):
+            r.delete(key)
+        return
+    for key in list(_MEM_CACHE):
+        if key.startswith(prefix):
+            _MEM_CACHE.pop(key, None)
+
 
 @app.route("/sw.js")
 def pwa_sw():
@@ -2052,6 +2110,9 @@ def route_availability():
 
 
 def monthly_revenue():
+    hit = cache_get("dash:rev")
+    if hit:
+        return hit
     row = query(
         """
         SELECT
@@ -2062,7 +2123,9 @@ def monthly_revenue():
         """,
         one=True,
     )
-    return row
+    data = {"receita": float(row["receita"] or 0), "total": int(row["total"] or 0), "pagos": int(row["pagos"] or 0)}
+    cache_set("dash:rev", data, 25)
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -2822,12 +2885,14 @@ def admin_parcel_dispatch(pid):
         kind="encomenda",
         send_email=False,
     )
+    cache_bust("dash")
     audit("encomenda_despacho", str(pid), str(driver_id))
     sender = query("SELECT phone FROM users WHERE id=?", (parcel["sender_id"],), one=True)
     if sender:
         notify_whatsapp(sender["phone"], f"Táxi designado para sua encomenda #{pid}.")
     if parcel["recipient_phone"]:
         notify_whatsapp(parcel["recipient_phone"], f"Sua encomenda #{pid} saiu com um táxi da Central Cone Sul.")
+    cache_bust("dash")
     flash("Encomenda despachada.", "ok")
     return redirect(url_for("admin_parcels"))
 
@@ -3403,9 +3468,17 @@ def admin_dashboard():
         """,
         one=True,
     )
-    ativos = sum(1 for d in drivers if d["status"] == "ativo")
-    bloqueados = sum(1 for d in drivers if d["status"] == "bloqueado")
-    pend_pay = sum(1 for d in drivers if d["payment_status"] == "pendente")
+    totals = query(
+        """SELECT COUNT(*) AS total,
+                  COALESCE(SUM(CASE WHEN status='ativo' THEN 1 ELSE 0 END),0) AS ativos,
+                  COALESCE(SUM(CASE WHEN status='bloqueado' THEN 1 ELSE 0 END),0) AS bloqueados,
+                  COALESCE(SUM(CASE WHEN payment_status='pendente' THEN 1 ELSE 0 END),0) AS pend_pay
+           FROM drivers""",
+        one=True,
+    )
+    ativos = int(totals["ativos"] or 0)
+    bloqueados = int(totals["bloqueados"] or 0)
+    pend_pay = int(totals["pend_pay"] or 0)
     receita = float(rev["receita"] or 0)
     receita_fmt = f"{receita:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return render_template(
@@ -3413,7 +3486,7 @@ def admin_dashboard():
         rev=rev,
         receita_fmt=receita_fmt,
         drivers=drivers[:10],
-        all_count=len(drivers),
+        all_count=int(totals["total"] or 0),
         pending_rides=pending_rides,
         month_label=month_label,
         ride_stats=ride_stats,
@@ -3937,6 +4010,7 @@ def admin_mark_paid(driver_id):
     else:
         audit("mensalidade_pendente", str(driver_id), "", "warn")
         flash("Mensalidade marcada como pendente.", "warn")
+    cache_bust("dash")
     return redirect(url_for("admin_payments"))
 
 
@@ -3983,6 +4057,7 @@ def admin_dispatch(ride_id):
             only_user_id=drv["user_id"],
         )
     audit("despachar_corrida", str(ride_id), str(driver_id))
+    cache_bust("dash")
     flash("Corrida despachada para o taxista.", "ok")
     return redirect(request.referrer or url_for("admin_rides"))
 

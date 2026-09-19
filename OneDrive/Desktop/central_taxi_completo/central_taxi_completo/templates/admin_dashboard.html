@@ -1,25 +1,28 @@
 {% extends "base.html" %}
-{% block title %}Central ao vivo{% endblock %}
+{% block title %}Painel de controle{% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 {% endblock %}
 {% block body_class %}admin-body{% endblock %}
 {% block shell_class %}admin-shell{% endblock %}
 {% block content %}
-<div class="admin-hero">
-  <div class="hero-cabs" aria-hidden="true"><span>🚕</span><span>🚕</span><span>🚕</span></div>
+<div class="admin-hero mesa-hero">
   <div class="admin-kicker">
-    <span>Taxi Central</span>
-    <span class="live-dot"><i></i> ao vivo · {{ now_label }}</span>
+    <span>Cone Sul</span>
+    <span class="live-dot"><i></i> ao vivo</span>
   </div>
-  <h1>Mesa de operação</h1>
-  <a class="admin-user" href="{{ url_for('admin_security') }}" style="color:inherit">
-    <div class="shield">🛡️</div>
-    <div>
-      <strong>{{ user.name }}</strong>
-      <span>Administrador Geral · Vilhena / Cone Sul</span>
-    </div>
-  </a>
+  <h1>Painel de controle</h1>
+  <p class="hero-line">{{ now_label }} · {{ user.name }}</p>
+</div>
+<div class="admin-page" style="padding-bottom:0">
+  <div class="ctrl-grid">
+    <a class="ctrl" href="{{ url_for('admin_drivers') }}">Motoristas</a>
+    <a class="ctrl" href="{{ url_for('admin_rides') }}">Corridas</a>
+    <a class="ctrl" href="{{ url_for('admin_parcels') }}">Encomendas</a>
+    <a class="ctrl" href="{{ url_for('admin_payments') }}">Mensalidades</a>
+    <a class="ctrl" href="{{ url_for('admin_config') }}">WhatsApp</a>
+    <a class="ctrl" href="{{ url_for('admin_security') }}">Segurança</a>
+  </div>
 </div>
 
 <div class="admin-page">
@@ -31,19 +34,7 @@
       </div>
       <span class="trend">{{ rev.pagos or 0 }}/{{ rev.total or 0 }} pagos</span>
     </div>
-    <div class="meta">
-      {{ rev.pagos or 0 }} mensalidades · {{ rev.total or 0 }} motoristas · {{ month_label }}
-    </div>
-    <svg class="spark" viewBox="0 0 300 42" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#22c55e" stop-opacity=".35"/>
-          <stop offset="100%" stop-color="#22c55e" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
-      <path class="spark-fill" d="M0,30 C30,28 40,22 60,24 C80,26 90,12 120,14 C150,16 160,8 190,10 C220,12 230,18 260,11 C280,8 290,14 300,10 L300,42 L0,42 Z" fill="url(#sg)"/>
-      <path class="spark-line" d="M0,30 C30,28 40,22 60,24 C80,26 90,12 120,14 C150,16 160,8 190,10 C220,12 230,18 260,11 C280,8 290,14 300,10" fill="none" stroke="#16a34a" stroke-width="2.4" stroke-linecap="round"/>
-    </svg>
+    <div class="meta">{{ month_label }}</div>
   </div>
 
   <div class="kpi-grid stagger">
@@ -78,7 +69,11 @@
   </div>
 
   {% if not pending_rides %}
-    <div class="soft-card" style="text-align:center;color:#64748b">Fila limpa — nenhuma corrida aguardando.</div>
+    <div class="soft-card empty-ops">
+      <div class="empty-ico">🚕</div>
+      <strong>Fila livre</strong>
+      <p>Quando o cliente pedir corrida ou encomenda, aparece aqui para despachar.</p>
+    </div>
   {% endif %}
   {% for c in pending_rides %}
   <div class="queue-card">

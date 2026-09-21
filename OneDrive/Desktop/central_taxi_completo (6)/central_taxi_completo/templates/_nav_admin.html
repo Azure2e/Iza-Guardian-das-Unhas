@@ -1,0 +1,27 @@
+<nav class="nav admin-nav menu-inferior">
+  <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if tab=='dash' }}">
+    <span>📊</span>Painel
+  </a>
+  <a href="{{ url_for('admin_drivers') }}" class="{{ 'active' if tab=='mot' }}">
+    <span>👤</span>Frota
+  </a>
+  <a href="{{ url_for('admin_rides') }}" class="{{ 'active' if tab=='rides' }}">
+    <span>🚕</span>Fila
+  </a>
+  <button type="button" class="nav-more" data-sheet="sheet-adm">
+    <span>☰</span>Mais
+  </button>
+</nav>
+<div class="sheet-bg" id="sheet-adm" hidden>
+  <div class="sheet">
+    <div class="sheet-grab"></div>
+    <a href="{{ url_for('admin_parcels') }}">Encomendas</a>
+    <a href="{{ url_for('admin_payments') }}">Mensalidades</a>
+    <a href="{{ url_for('admin_security') }}">Segurança</a>
+    <a href="{{ url_for('admin_config') }}">Rotas e WhatsApp</a>
+    <a href="{{ url_for('admin_traffic') }}">Tráfego</a>
+    <a href="{{ url_for('pwa_lab') }}">PWA</a>
+    <a href="{{ url_for('logout') }}">Sair</a>
+    <button type="button" class="btn btn-ghost btn-block sheet-close">Fechar</button>
+  </div>
+</div>

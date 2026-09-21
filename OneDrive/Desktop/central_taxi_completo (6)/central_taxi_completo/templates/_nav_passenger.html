@@ -1,0 +1,27 @@
+<nav class="nav">
+  <a href="{{ url_for('passenger_home') }}" class="{{ 'active' if tab=='inicio' }}">
+    <span>🏠</span>Início
+  </a>
+  <a href="{{ url_for('passenger_rides') }}" class="{{ 'active' if tab=='corridas' }}">
+    <span>📋</span>Corridas
+  </a>
+  <a href="{{ url_for('parcel_list') }}" class="{{ 'active' if tab=='encomenda' }}">
+    <span>📦</span>Encomenda
+  </a>
+  <button type="button" class="nav-more" data-sheet="sheet-pass">
+    <span>☰</span>Mais
+  </button>
+</nav>
+<div class="sheet-bg" id="sheet-pass" hidden>
+  <div class="sheet">
+    <div class="sheet-grab"></div>
+    <a href="{{ url_for('passenger_routes') }}">Rotas</a>
+    <a href="{{ url_for('schedule_ride') }}">Agendar família</a>
+    <a href="{{ url_for('parcel_new') }}">Enviar encomenda</a>
+    <a href="{{ url_for('share_module') }}">Indicar · os dois ganham</a>
+    <a href="{{ url_for('instalar_app') }}">Instalar app</a>
+    <a href="{{ url_for('passenger_profile') }}">Perfil</a>
+    <a href="{{ url_for('logout') }}">Sair</a>
+    <button type="button" class="btn btn-ghost btn-block sheet-close">Fechar</button>
+  </div>
+</div>

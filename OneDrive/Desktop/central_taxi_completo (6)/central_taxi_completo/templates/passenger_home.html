@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Início — Cone Sul{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div class="brand-sub">Olá{% if user %}, {{ user.name.split(' ')[0] }}{% endif %}</div>
+  <h1>Para onde vamos?</h1>
+</div>
+<div class="page home-app">
+  <div class="home-actions">
+    <a class="home-tile dark" href="{{ url_for('passenger_routes') }}">
+      <strong>Pedir táxi</strong>
+      <span>4 rotas do Cone Sul</span>
+    </a>
+    <a class="home-tile green" href="{{ url_for('schedule_ride') }}">
+      <strong>Família</strong>
+      <span>Até 4 pessoas</span>
+    </a>
+    <a class="home-tile" href="{{ url_for('parcel_new') }}">
+      <strong>Encomenda</strong>
+      <span>Enviar pelo táxi</span>
+    </a>
+    <a class="home-tile" href="{{ url_for('share_module') }}">
+      <strong>Indicar</strong>
+      <span>Os dois ganham</span>
+    </a>
+  </div>
+
+  {% include "_leaflet_map.html" %}
+
+  <h2>Rotas</h2>
+  <p class="hint">Toque na rota para chamar agora</p>
+  {% for r in routes %}
+  <a class="card route-card" href="{{ url_for('request_now', route_id=r.id) }}">
+    <div class="route-ico">🚕</div>
+    <div class="grow">
+      <h3>{{ r.label }}</h3>
+      <p>R$ {{ '%.2f'|format(r.price or 0) }} · {{ r.duration_min or 0 }} min</p>
+    </div>
+    <span class="badge green">Pedir</span>
+  </a>
+  {% else %}
+  <div class="soft-card empty-ops">
+    <strong>Rotas da central</strong>
+    <p>Vilhena × Cerejeiras, Colorado, Cabixi e Pimenteiras. Se não aparecer, o admin salva em Configurações.</p>
+  </div>
+  {% endfor %}
+
+  <a class="card" href="{{ url_for('passenger_notifications') }}">
+    <strong>Avisos</strong>
+    <p class="sub">{% if unread_notes %}{{ unread_notes }} novo(s){% else %}Quando o táxi chegar a 200 m da casa, o aviso entra aqui.{% endif %}</p>
+  </a>
+
+  {% if upcoming %}
+  <h2 style="margin-top:18px">Em andamento</h2>
+  {% for c in upcoming %}
+  <div class="card">
+    <strong>{{ c.route_label }}</strong>
+    <p class="sub">{{ c.status }}{% if c.scheduled_at %} · {{ c.scheduled_at }}{% endif %}</p>
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}
+{% block nav %}{% set tab='inicio' %}{% include "_nav_passenger.html" %}{% endblock %}

@@ -1,0 +1,13 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+taxi.db
+*.db-journal
+logs/
+.env
+.DS_Store
+Thumbs.db
+*.zip

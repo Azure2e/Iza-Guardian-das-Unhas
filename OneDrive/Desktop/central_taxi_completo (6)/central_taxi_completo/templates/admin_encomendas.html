@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Encomendas{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">{% endblock %}
+{% block body_class %}admin-body{% endblock %}
+{% block content %}
+<div class="topbar">
+  <div class="brand-sub">Recebimento</div>
+  <h1>Encomendas da central</h1>
+</div>
+<div class="page">
+  <form method="post" class="soft-card">
+    <h2 style="font-size:16px">Registrar encomenda</h2>
+    <p class="hint">O cliente também pode pedir no app: Encomenda → Enviar.</p>
+    <div class="form-group">
+      <label>Cliente</label>
+      <select name="sender_id" required>
+        <option value="">Selecione o passageiro</option>
+        {% for u in passengers %}
+        <option value="{{ u.id }}">{{ u.name }} · {{ u.phone }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Rota</label>
+      <select name="route_id" required>
+        {% for r in routes %}
+        <option value="{{ r.id }}">{{ r.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group"><label>Coleta</label><input name="pickup_address" required></div>
+    <div class="form-group"><label>Entrega</label><input name="delivery_address" required></div>
+    <div class="form-group"><label>Quem recebe</label><input name="recipient_name" required></div>
+    <div class="form-group"><label>WhatsApp de quem recebe</label><input name="recipient_phone"></div>
+    <button class="btn btn-primary btn-block" type="submit">Lançar na fila</button>
+  </form>
+  {% if not passengers %}
+  <p class="hint">Cadastre um cliente no app (Cadastrar) para aparecer na lista.</p>
+  {% endif %}
+
+  {% for p in parcels %}
+  <article class="fleet-card">
+    <header>
+      <div class="grow">
+        <strong>#{{ p.id }} · {{ p.route_label }}</strong>
+        <div class="sub">{{ p.sender_name }} · {{ p.sender_phone }}</div>
+      </div>
+      <span class="badge {{ 'orange' if p.status=='pendente' else 'green' if p.status=='entregue' else 'blue' }}">{{ p.status }}</span>
+    </header>
+    <ul class="fleet-meta">
+      <li>📦 {{ p.size }} · R$ {{ '%.2f'|format(p.price or 0) }}</li>
+      <li>📤 {{ p.pickup_address }}</li>
+      <li>📥 {{ p.delivery_address }} · {{ p.recipient_name }}</li>
+      {% if p.driver_name %}<li>🚕 {{ p.driver_name }} · {{ p.plate }}</li>{% endif %}
+    </ul>
+    {% if p.status=='pendente' %}
+    <form method="post" action="{{ url_for('admin_parcel_dispatch', pid=p.id) }}" class="ops-form">
+      <select name="driver_id" required>
+        <option value="">Taxista da rota</option>
+        {% for d in livres_by_route.get(p.route_id, []) %}
+        <option value="{{ d.id }}">{{ d.name }} · {{ d.plate }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-primary btn-sm" type="submit">Despachar</button>
+    </form>
+    {% endif %}
+  </article>
+  {% else %}
+  <div class="soft-card empty-ops">
+    <div class="empty-ico">📦</div>
+    <strong>Fila de encomenda vazia</strong>
+    <p>Lance acima ou peça no app do cliente (Encomenda → Enviar).</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block nav %}{% set tab='rides' %}{% include "_nav_admin.html" %}{% endblock %}

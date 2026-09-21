@@ -1,0 +1,25 @@
+{% if user %}
+<nav class="menu-topo">
+  {% if user.role == 'admin' %}
+  <a href="{{ url_for('admin_dashboard') }}">Painel</a>
+  <a href="{{ url_for('admin_drivers') }}">Motoristas</a>
+  <a href="{{ url_for('admin_rides') }}">Corridas</a>
+  <a href="{{ url_for('admin_parcels') }}">Encomendas</a>
+  <a href="{{ url_for('admin_payments') }}">Mensalidades</a>
+  <a href="{{ url_for('admin_security') }}">Segurança</a>
+  <a href="{{ url_for('admin_logs_live') }}">Logs</a>
+  <a href="{{ url_for('logout') }}">Sair</a>
+  {% elif user.role == 'passageiro' %}
+  <a href="{{ url_for('passenger_home') }}">Início</a>
+  <a href="{{ url_for('passenger_rides') }}">Corridas</a>
+  <a href="{{ url_for('parcel_list') }}">Encomenda</a>
+  <a href="{{ url_for('schedule_ride') }}">Família</a>
+  <a href="{{ url_for('passenger_profile') }}">Perfil</a>
+  <a href="{{ url_for('logout') }}">Sair</a>
+  {% elif user.role == 'motorista' %}
+  <a href="{{ url_for('driver_home') }}">Fila</a>
+  <a href="{{ url_for('driver_notifications') }}">Avisos</a>
+  <a href="{{ url_for('logout') }}">Sair</a>
+  {% endif %}
+</nav>
+{% endif %}

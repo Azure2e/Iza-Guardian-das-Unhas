@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="header">
+    <div class="logo-circle">G</div>
+    <div class="brand">Iza, Guardian</div>
+    <div class="subtitle">O que vamos cuidar hoje?</div>
+</div>
+
+<a href="{% url 'book_appointment' %}" class="btn-primary">
+    <i class="fas fa-calendar-check"></i> Agendar Horário
+</a>
+
+<div class="section-title">
+    <span>Olá{% if user_name %}, {{ user_name }}{% else %}, Iza Guardian das Unhas{% endif %}!</span>
+    <a href="{% url 'catalog' %}">Ver tudo ></a>
+</div>
+
+<div class="cards-row">
+    {% for service in featured %}
+    <a href="{% url 'service_detail' service.pk %}" class="card" style="text-decoration: none; color: inherit;">
+        {% if service.image %}
+            <img src="{{ service.image.url }}" alt="{{ service.name }}">
+        {% else %}
+            <div class="card-placeholder" style="display: flex; align-items: center; justify-content: center; color: #c48b8b;">
+                <i class="fas fa-spa" style="font-size: 40px;"></i>
+            </div>
+        {% endif %}
+        <div class="card-info">
+            <h3>{{ service.name }}</h3>
+            <div class="price">R$ {{ service.price }}</div>
+        </div>
+    </a>
+    {% empty %}
+    <p style="padding: 0 16px; color: #999;">Nenhum serviço em destaque.</p>
+    {% endfor %}
+</div>
+
+<div class="section-title">
+    <span>Catálogo de Modelos</span>
+    <a href="{% url 'catalog' %}">Ver catálogo ></a>
+</div>
+
+<div class="cards-grid">
+    {% for service in services %}
+    <a href="{% url 'service_detail' service.pk %}" class="card" style="text-decoration: none; color: inherit;">
+        {% if service.image %}
+            <img src="{{ service.image.url }}" alt="{{ service.name }}">
+        {% else %}
+            <div class="card-placeholder" style="display: flex; align-items: center; justify-content: center; color: #c48b8b;">
+                <i class="fas fa-hand-sparkles" style="font-size: 40px;"></i>
+            </div>
+        {% endif %}
+        <div class="card-info">
+            <h3>{{ service.name }}</h3>
+            <div class="price">R$ {{ service.price }}</div>
+        </div>
+    </a>
+    {% empty %}
+    <p style="grid-column: 1 / -1; padding: 20px; text-align: center; color: #999;">Nenhum serviço cadastrado.</p>
+    {% endfor %}
+</div>
+{% endblock %}

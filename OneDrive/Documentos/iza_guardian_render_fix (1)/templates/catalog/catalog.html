@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}Catálogo - Iza Guardian{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div class="brand">Catálogo de Modelos</div>
+</div>
+
+<div class="cards-grid" style="padding-top: 20px;">
+    {% for service in services %}
+    <a href="{% url 'service_detail' service.pk %}" class="card" style="text-decoration: none; color: inherit;">
+        {% if service.image %}
+            <img src="{{ service.image.url }}" alt="{{ service.name }}">
+        {% else %}
+            <div class="card-placeholder" style="display: flex; align-items: center; justify-content: center; color: #c48b8b;">
+                <i class="fas fa-spa" style="font-size: 40px;"></i>
+            </div>
+        {% endif %}
+        <div class="card-info">
+            <h3>{{ service.name }}</h3>
+            <div class="price">R$ {{ service.price }}</div>
+        </div>
+    </a>
+    {% empty %}
+    <p style="grid-column: 1 / -1;">Nenhum serviço cadastrado ainda.</p>
+    {% endfor %}
+</div>
+{% endblock %}

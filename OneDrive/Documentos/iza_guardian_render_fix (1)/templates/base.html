@@ -1,0 +1,61 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#d4a5a5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Iza Guardian">
+    <title>{% block title %}Iza Guardian das Unhas{% endblock %}</title>
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <link rel="apple-touch-icon" href="{% static 'img/icon-192.png' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="messages {% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    {% block content %}{% endblock %}
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <a href="{% url 'home' %}" class="nav-item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+            <i class="fas fa-home"></i>
+            Início
+        </a>
+        <a href="{% url 'catalog' %}" class="nav-item {% if request.resolver_match.url_name == 'catalog' %}active{% endif %}">
+            <i class="fas fa-th"></i>
+            Catálogo
+        </a>
+        <a href="{% url 'book_appointment' %}" class="nav-item {% if 'book' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="fas fa-calendar-alt"></i>
+            Agendar
+        </a>
+        <a href="{% url 'favorites' %}" class="nav-item {% if request.resolver_match.url_name == 'favorites' %}active{% endif %}">
+            <i class="fas fa-heart"></i>
+            Favoritos
+        </a>
+        <a href="{% url 'profile' %}" class="nav-item {% if request.resolver_match.url_name == 'profile' %}active{% endif %}">
+            <i class="fas fa-user"></i>
+            Perfil
+        </a>
+    </nav>
+
+    <script src="{% static 'js/main.js' %}"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('{% static "js/sw.js" %}')
+                    .then(reg => console.log('Service Worker registrado'))
+                    .catch(err => console.log('Erro SW:', err));
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}Favoritos - Iza Guardian{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div class="brand">Meus Favoritos</div>
+</div>
+
+<div class="cards-grid" style="padding-top: 20px;">
+    {% for fav in favorites %}
+    <a href="{% url 'service_detail' fav.service.pk %}" class="card" style="text-decoration: none; color: inherit;">
+        {% if fav.service.image %}
+            <img src="{{ fav.service.image.url }}" alt="{{ fav.service.name }}">
+        {% else %}
+            <div class="card-placeholder" style="display: flex; align-items: center; justify-content: center; color: #c48b8b;">
+                <i class="fas fa-heart" style="font-size: 40px;"></i>
+            </div>
+        {% endif %}
+        <div class="card-info">
+            <h3>{{ fav.service.name }}</h3>
+            <div class="price">R$ {{ fav.service.price }}</div>
+        </div>
+    </a>
+    {% empty %}
+    <p style="grid-column: 1 / -1; padding: 20px; text-align: center;">Você ainda não tem favoritos.</p>
+    {% endfor %}
+</div>
+{% endblock %}

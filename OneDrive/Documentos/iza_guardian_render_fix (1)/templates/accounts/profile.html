@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Perfil - Iza Guardian{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div class="brand">Meu Perfil</div>
+</div>
+
+<div style="padding: 20px; max-width: 500px; margin: 0 auto;">
+    {% if user.is_authenticated %}
+        <!-- Foto do perfil -->
+        <div style="text-align: center; margin-bottom: 20px;">
+            {% if profile.photo %}
+                <img src="{{ profile.photo.url }}" alt="Foto de perfil" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid var(--primary);">
+            {% else %}
+                <div class="logo-circle" style="width: 120px; height: 120px; font-size: 48px; margin: 0 auto;">
+                    {{ user.username|first|upper }}
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Informações -->
+        <div style="background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label>Nome Completo</label>
+                    <input type="text" name="full_name" value="{{ profile.full_name|default:user.username }}" placeholder="Seu nome completo">
+                </div>
+
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" name="email" value="{{ user.email }}" placeholder="seu@email.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Telefone (opcional)</label>
+                    <input type="text" name="phone" value="{{ profile.phone }}" placeholder="(00) 00000-0000">
+                </div>
+
+                <div class="form-group">
+                    <label>Foto de Perfil</label>
+                    <input type="file" name="photo" accept="image/*">
+                </div>
+
+                <button type="submit" class="btn-primary" style="background: linear-gradient(90deg, #4a90e2, #357abd); box-shadow: 0 6px 20px rgba(74, 144, 226, 0.45);">Salvar Alterações</button>
+            </form>
+        </div>
+
+        <div style="text-align: center; margin-top: 24px;">
+            <a href="{% url 'logout' %}" class="btn-primary" style="background: #e74c3c; max-width: 200px;">Sair</a>
+        </div>
+    {% else %}
+        <p style="text-align: center;">Você não está logado.</p>
+        <a href="{% url 'login' %}" class="btn-primary">Entrar</a>
+    {% endif %}
+</div>
+{% endblock %}

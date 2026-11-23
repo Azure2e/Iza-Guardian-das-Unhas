@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Entrar - Iza Guardian{% endblock %}
+
+{% block content %}
+<style>
+.login-wrapper {
+    min-height: calc(100vh - 80px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.login-card {
+    background: white;
+    border-radius: 24px;
+    padding: 32px 24px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 10px 40px rgba(212, 165, 165, 0.25);
+    text-align: center;
+}
+.login-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f8e8e8, #d4a5a5);
+    border: 3px solid white;
+    box-shadow: 0 4px 20px rgba(212, 165, 165, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 32px;
+    font-weight: 700;
+    color: #8b4d5c;
+}
+.login-title {
+    font-size: 26px;
+    font-weight: 600;
+    color: #8b4d5c;
+    margin-bottom: 6px;
+}
+.login-subtitle {
+    color: #a07070;
+    font-size: 14px;
+    margin-bottom: 28px;
+}
+.input-group {
+    margin-bottom: 18px;
+    text-align: left;
+}
+.input-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #8b4d5c;
+    margin-bottom: 6px;
+}
+.input-group input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1.5px solid #f0d8d8;
+    border-radius: 14px;
+    font-size: 16px;
+    background: #fdf9f9;
+    transition: all 0.2s;
+}
+.input-group input:focus {
+    outline: none;
+    border-color: #d4a5a5;
+    background: white;
+    box-shadow: 0 0 0 4px rgba(212, 165, 165, 0.15);
+}
+.btn-login {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(90deg, #d4a5a5, #c48b8b);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    box-shadow: 0 6px 20px rgba(212, 165, 165, 0.4);
+    transition: transform 0.2s;
+}
+.btn-login:hover {
+    transform: translateY(-2px);
+}
+.register-link {
+    margin-top: 20px;
+    font-size: 14px;
+    color: #a07070;
+}
+.register-link a {
+    color: #8b4d5c;
+    font-weight: 600;
+    text-decoration: none;
+}
+.errorlist {
+    background: #ffebee;
+    color: #c62828;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    text-align: left;
+}
+</style>
+
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="login-logo">G</div>
+        <div class="login-title">Bem-vinda</div>
+        <div class="login-subtitle">Entre na sua conta Iza Guardian</div>
+
+        <form method="post">
+            {% csrf_token %}
+
+            {% if form.errors %}
+                <div class="errorlist">
+                    {% for error in form.non_field_errors %}
+                        {{ error }}
+                    {% endfor %}
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="input-group">
+                <label>Usuário</label>
+                <input type="text" name="username" placeholder="Seu usuário" required autofocus>
+            </div>
+
+            <div class="input-group">
+                <label>Senha</label>
+                <input type="password" name="password" placeholder="Sua senha" required>
+            </div>
+
+            <button type="submit" class="btn-login">Entrar</button>
+        </form>
+
+        <div class="register-link">
+            Não tem conta? <a href="{% url 'register' %}">Registrar agora</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ service.name }} - Iza Guardian{% endblock %}
+
+{% block content %}
+<style>
+.image-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.92);
+    align-items: center;
+    justify-content: center;
+}
+.image-modal.active {
+    display: flex;
+}
+.image-modal img {
+    max-width: 95%;
+    max-height: 90%;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+.modal-close {
+    position: absolute;
+    top: 20px;
+    right: 25px;
+    color: white;
+    font-size: 36px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 1001;
+}
+.service-image {
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.service-image:hover {
+    transform: scale(1.02);
+}
+</style>
+
+<div class="header">
+    <div class="brand">{{ service.name }}</div>
+</div>
+
+<div style="padding: 16px;">
+    {% if service.image %}
+        <img src="{{ service.image.url }}" alt="{{ service.name }}" class="service-image" 
+             style="width: 100%; border-radius: 16px; max-height: 300px; object-fit: cover;"
+             onclick="openImageModal(this.src)">
+    {% else %}
+        <div class="card-placeholder" style="height: 250px; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-spa" style="font-size: 60px; color: #c48b8b;"></i>
+        </div>
+    {% endif %}
+
+    <div style="background: white; border-radius: 16px; padding: 20px; margin-top: 16px;">
+        <h2 style="color: var(--accent); margin-bottom: 8px;">{{ service.name }}</h2>
+        <div class="price" style="font-size: 24px; margin-bottom: 12px;">R$ {{ service.price }}</div>
+        {% if service.description %}
+            <p>{{ service.description }}</p>
+        {% endif %}
+
+        <div style="margin-top: 20px; display: flex; gap: 10px;">
+            <a href="{% url 'book_service' service.pk %}" class="btn-primary" style="flex: 1; margin: 0;">Agendar</a>
+            <a href="{% url 'toggle_favorite' service.pk %}" class="btn-primary" style="flex: 0 0 60px; margin: 0; background: {% if is_favorite %}#e74c3c{% else %}var(--primary){% endif %};">
+                <i class="fas fa-heart"></i>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Modal da imagem completa -->
+<div id="imageModal" class="image-modal" onclick="closeImageModal()">
+    <span class="modal-close">&times;</span>
+    <img id="modalImage" src="" alt="Imagem completa">
+</div>
+
+<script>
+function openImageModal(src) {
+    document.getElementById('modalImage').src = src;
+    document.getElementById('imageModal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+function closeImageModal() {
+    document.getElementById('imageModal').classList.remove('active');
+    document.body.style.overflow = '';
+}
+// Fechar com ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeImageModal();
+});
+</script>
+{% endblock %}

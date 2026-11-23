@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block title %}Meus Agendamentos - Iza Guardian{% endblock %}
+
+{% block content %}
+<div class="header">
+    <div class="brand">Meus Agendamentos</div>
+</div>
+
+<div style="padding: 16px;">
+    {% for apt in appointments %}
+    <div style="background: white; border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+        <div style="font-weight: 600; color: var(--accent);">{{ apt.service.name }}</div>
+        <div style="margin: 8px 0; color: #666;">
+            {{ apt.date|date:"d/m/Y" }} às {{ apt.time|time:"H:i" }}
+        </div>
+        <div style="display: inline-block; padding: 4px 12px; border-radius: 20px; background: {% if apt.status == 'confirmed' %}#e8f5e9{% elif apt.status == 'cancelled' %}#ffebee{% else %}#fff3e0{% endif %}; font-size: 13px;">
+            {{ apt.get_status_display }}
+        </div>
+        {% if apt.status == 'pending' or apt.status == 'confirmed' %}
+        <a href="{% url 'cancel_appointment' apt.pk %}" style="float: right; color: #e74c3c; font-size: 13px;">Cancelar</a>
+        {% endif %}
+    </div>
+    {% empty %}
+    <p style="text-align: center; padding: 40px; color: #999;">Nenhum agendamento ainda.<br><a href="{% url 'book_appointment' %}">Agendar agora</a></p>
+    {% endfor %}
+</div>
+{% endblock %}
